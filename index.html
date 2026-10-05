@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>light-chat playground</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        font-family: system-ui, sans-serif;
+        color-scheme: light dark;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+      }
+      header {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+        padding: 8px 16px;
+        font-size: 14px;
+        border-bottom: 1px solid light-dark(#d4d4d4, #333333);
+        background: light-dark(#ffffff, #141414);
+      }
+      #chat {
+        flex: 1;
+        min-height: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <strong>light-chat</strong>
+      <label
+        >Protocol
+        <select id="protocol">
+          <option>agui</option>
+          <option>openai</option>
+        </select></label
+      >
+      <label
+        >Theme
+        <select id="theme">
+          <option>auto</option>
+          <option>light</option>
+          <option>dark</option>
+        </select></label
+      >
+      <label>URL <input id="url" size="30" placeholder="defaults to local mock" /></label>
+    </header>
+    <div id="chat"></div>
+    <script type="module">
+      import { AgUiConnector, Chat, OpenAIConnector } from "/packages/js/src/index.ts";
+
+      const $ = (id) => document.getElementById(id);
+      let chat;
+
+      // Recreate the chat whenever a setting changes
+      function mount() {
+        chat?.destroy();
+        const protocol = $("protocol").value;
+        const url = $("url").value || `/api/${protocol}`;
+        chat = new Chat("chat", {
+          connector: protocol === "openai" ? new OpenAIConnector({ url }) : new AgUiConnector({ url }),
+          settings: {
+            apiKey: true,
+            models: ["qwen-3.8", "kimi-k3", "gpt-5"],
+            // Custom target: sent as ?effort= query parameter instead of the connector default
+            effort: { values: ["minimal", "low", "medium", "high"], query: "effort" },
+          },
+          theme: $("theme").value,
+          examples: ["What is the weather in Lausanne?", "Write a python snippet to fetch weather data"],
+          welcome:
+            "## How can I help you today?\nAsk anything, the local mock answers with reasoning, a tool call and markdown.",
+          onRate: (message, rating) => console.log("rated", rating, message),
+        });
+      }
+
+      for (const id of ["protocol", "theme", "url"]) $(id).addEventListener("change", mount);
+      mount();
+    </script>
+  </body>
+</html>

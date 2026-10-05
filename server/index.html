@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>UniProt agent</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        color-scheme: light dark;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="chat" style="height: 100%"></div>
+    <script src="/static/index.iife.js"></script>
+    <script type="module">
+      // Models picker filled from the API, the chosen one is sent in `forwardedProps.model`
+      const models = await fetch("/models").then((r) => r.json());
+      new LightChat.Chat("chat", {
+        url: "/chat",
+        settings: { models },
+        welcome:
+          "## Ask about proteins\nThe agent searches and fetches entries from [UniProt](https://www.uniprot.org).",
+        placeholder: "e.g. What is the function of human insulin?",
+        examples: [
+          "What is the function of human insulin?",
+          "Which proteins are involved in the human circadian clock?",
+        ],
+      });
+    </script>
+  </body>
+</html>

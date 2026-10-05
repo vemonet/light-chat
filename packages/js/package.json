@@ -1,0 +1,45 @@
+{
+  "name": "light-chat",
+  "version": "0.1.0",
+  "description": "Lightweight, framework agnostic chat UI with streaming support for AG-UI and OpenAI-compatible backends",
+  "keywords": [
+    "ag-ui",
+    "chat",
+    "llm",
+    "openai",
+    "streaming",
+    "ui",
+    "widget"
+  ],
+  "license": "MIT",
+  "author": "Vincent Emonet <vincent.emonet@sib.swiss>",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "unpkg": "./dist/index.iife.js",
+  "jsdelivr": "./dist/index.iife.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./iife": "./dist/index.iife.js",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vp pack",
+    "prepublishOnly": "vp pack"
+  },
+  "devDependencies": {
+    "light-chat-solid": "workspace:*",
+    "solid-js": "^1.9.15"
+  }
+}

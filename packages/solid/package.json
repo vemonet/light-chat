@@ -1,0 +1,51 @@
+{
+  "name": "light-chat-solid",
+  "version": "0.1.0",
+  "description": "Lightweight chat UI SolidJS component with streaming support for AG-UI and OpenAI-compatible backends",
+  "keywords": [
+    "ag-ui",
+    "chat",
+    "llm",
+    "openai",
+    "solid",
+    "solidjs",
+    "streaming",
+    "ui"
+  ],
+  "license": "MIT",
+  "author": "Vincent Emonet <vincent.emonet@sib.swiss>",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      },
+      "./package.json": "./package.json"
+    },
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vp pack",
+    "prepublishOnly": "vp pack"
+  },
+  "dependencies": {
+    "dompurify": "^3.4.16",
+    "highlight.js": "^11.12.0",
+    "marked": "^18.0.14"
+  },
+  "devDependencies": {
+    "solid-js": "^1.9.15"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.0"
+  }
+}

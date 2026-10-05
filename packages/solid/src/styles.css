@@ -1,0 +1,1128 @@
+/* Theme: every color uses light-dark(), driven by `color-scheme` on .lc-root.
+   Override any --lc-* variable on .lc-root to customize. */
+.lc-root {
+  --lc-bg: light-dark(#ffffff, #141414);
+  --lc-fg: light-dark(#171717, #ececec);
+  --lc-muted: light-dark(#575757, #a3a3a3);
+  --lc-surface: light-dark(#ececec, #262626);
+  --lc-input-bg: light-dark(#ffffff, #262626);
+  --lc-border: light-dark(#d4d4d4, #333333);
+  --lc-border-strong: light-dark(#a3a3a3, #525252);
+  --lc-hover: light-dark(rgb(0 0 0 / 0.06), rgb(255 255 255 / 0.08));
+  --lc-accent: light-dark(#262626, #e5e5e5);
+  --lc-link: light-dark(#1d5fc9, #7cacf8);
+  --lc-error: light-dark(#b42318, #f97066);
+  --lc-code-bg: light-dark(#f5f5f5, #1c1c1c);
+  --lc-sidebar-bg: light-dark(#f7f7f7, #0a0a0a);
+  --lc-sidebar-border: light-dark(#ededed, #1c1c1c);
+  --lc-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --lc-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --lc-radius: 16px;
+  --lc-max-width: 760px;
+
+  color-scheme: light dark;
+  box-sizing: border-box;
+  position: relative;
+  display: flex;
+  height: 100%;
+  container-type: inline-size;
+  min-height: 0;
+  background: var(--lc-bg);
+  color: var(--lc-fg);
+  font-family: var(--lc-font);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.lc-root *,
+.lc-root *::before,
+.lc-root *::after {
+  box-sizing: inherit;
+}
+
+.lc-root button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.lc-root svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+/* Layout: optional sidebar, then the chat column */
+.lc-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Sidebar: conversation history */
+.lc-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+  width: 260px;
+  padding: 10px 8px;
+  border-right: 1px solid var(--lc-sidebar-border);
+  background: var(--lc-sidebar-bg);
+  overflow: hidden;
+}
+
+/* Collapsed sidebar: expand and new chat buttons floating top left */
+.lc-sidebar-float {
+  position: absolute;
+  top: 6px;
+  left: 10px;
+  z-index: 5;
+  display: flex;
+  gap: 2px;
+}
+
+/* When the chat column reaches the floating buttons, reserve a strip above it so content never scrolls under */
+@container (max-width: 960px) {
+  .lc-sidebar-float ~ .lc-main {
+    padding-top: 42px;
+  }
+
+  .lc-sidebar-float ~ .lc-main .lc-thread {
+    padding-top: 8px;
+  }
+}
+
+.lc-root .lc-sidebar-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 8px;
+  color: var(--lc-muted);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.lc-root .lc-sidebar-btn:hover {
+  background: var(--lc-hover);
+  color: var(--lc-fg);
+}
+
+.lc-root .lc-square {
+  justify-content: center;
+  width: 32px;
+  padding: 0;
+}
+
+.lc-sidebar > .lc-square {
+  margin-bottom: 6px;
+}
+
+/* Plus in a round outline, for new chat */
+.lc-new-icon {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-left: -3px;
+  border: 1px solid var(--lc-border-strong);
+  border-radius: 50%;
+}
+
+.lc-square .lc-new-icon {
+  margin-left: 0;
+}
+
+.lc-new-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+.lc-recents {
+  margin: 14px 8px 4px;
+  color: var(--lc-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.lc-conversations {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.lc-conversation {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+}
+
+.lc-conversation:hover,
+.lc-conversation.lc-current {
+  background: var(--lc-hover);
+}
+
+.lc-root .lc-conversation-title {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  overflow: hidden;
+  color: var(--lc-fg);
+  font-size: 14px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.85;
+}
+
+.lc-conversation.lc-current .lc-conversation-title {
+  opacity: 1;
+}
+
+.lc-root .lc-conversation-delete {
+  display: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-right: 3px;
+  border-radius: 6px;
+  color: var(--lc-muted);
+}
+
+.lc-root .lc-conversation-delete:hover {
+  color: var(--lc-error);
+}
+
+.lc-conversation-delete svg {
+  width: 14px;
+  height: 14px;
+}
+
+.lc-conversation:hover .lc-conversation-delete,
+.lc-conversation-delete:focus-visible {
+  display: grid;
+}
+
+@media (hover: none) {
+  .lc-conversation.lc-current .lc-conversation-delete {
+    display: grid;
+  }
+}
+
+/* Narrow screens: the open sidebar overlays the chat */
+@media (max-width: 700px) {
+  .lc-sidebar {
+    position: absolute;
+    inset: 0 auto 0 0;
+    z-index: 20;
+    width: min(280px, 85%);
+    box-shadow: 0 0 40px rgb(0 0 0 / 0.3);
+  }
+
+  .lc-backdrop {
+    position: absolute;
+    inset: 0;
+    z-index: 19;
+  }
+}
+
+@media (min-width: 701px) {
+  .lc-backdrop {
+    display: none;
+  }
+}
+
+.lc-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable both-edges;
+}
+
+.lc-thread {
+  max-width: var(--lc-max-width);
+  margin: 0 auto;
+  padding: 24px 16px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.lc-welcome {
+  margin-top: 18vh;
+  text-align: center;
+  color: var(--lc-muted);
+}
+
+.lc-welcome h1,
+.lc-welcome h2 {
+  color: var(--lc-fg);
+  font-weight: 500;
+}
+
+/* Example questions: clickable cards, two per row when there is room */
+.lc-examples {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+  max-width: 600px;
+  margin: 24px auto 0;
+}
+
+.lc-root .lc-example {
+  padding: 10px 14px;
+  border: 1px solid var(--lc-border);
+  border-radius: 12px;
+  color: var(--lc-muted);
+  font-size: 14px;
+  line-height: 1.45;
+  text-align: left;
+  transition:
+    color 0.15s,
+    background 0.15s;
+}
+
+.lc-root .lc-example:hover {
+  background: var(--lc-hover);
+  color: var(--lc-fg);
+}
+
+/* Messages */
+.lc-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.lc-user {
+  align-items: flex-end;
+}
+
+.lc-bubble {
+  max-width: 85%;
+  padding: 10px 16px;
+  border-radius: var(--lc-radius);
+  background: var(--lc-surface);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.lc-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.lc-error {
+  color: var(--lc-error);
+  font-size: 14px;
+}
+
+/* Hover actions: copy, rating, datetime */
+.lc-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.lc-msg:hover .lc-actions,
+.lc-actions:focus-within {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .lc-actions {
+    opacity: 1;
+  }
+}
+
+.lc-action {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: var(--lc-muted);
+  opacity: 0.55;
+  transition:
+    opacity 0.15s,
+    background 0.15s;
+}
+
+.lc-action:hover,
+.lc-action.lc-selected {
+  opacity: 1;
+}
+
+.lc-action svg {
+  width: 14px;
+  height: 14px;
+}
+
+.lc-action:hover {
+  background: var(--lc-hover);
+}
+
+.lc-action.lc-selected {
+  color: var(--lc-accent);
+}
+
+.lc-action.lc-selected svg {
+  fill: currentColor;
+  fill-opacity: 0.25;
+}
+
+/* Copy buttons (message and code block) show a check while `data-copied` is set */
+.lc-copy svg + svg,
+.lc-code-copy svg + svg,
+.lc-copy[data-copied] svg:first-child,
+.lc-code-copy[data-copied] svg:first-child {
+  display: none;
+}
+
+.lc-copy[data-copied] svg + svg,
+.lc-code-copy[data-copied] svg + svg {
+  display: block;
+}
+
+.lc-time {
+  font-size: 12px;
+  color: var(--lc-muted);
+  opacity: 0.7;
+  padding: 0 6px;
+}
+
+/* Loading dots */
+.lc-dots {
+  display: flex;
+  gap: 4px;
+  padding: 10px 0;
+}
+
+.lc-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--lc-muted);
+  animation: lc-pulse 1.2s infinite ease-in-out;
+}
+
+.lc-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.lc-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes lc-pulse {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Collapsible lines: tool calls and reasoning, dimmed text that brightens on hover */
+.lc-collapsible {
+  font-size: 14px;
+  color: var(--lc-muted);
+}
+
+.lc-collapsible summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 2px 0;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  transition: color 0.15s;
+}
+
+.lc-collapsible summary::-webkit-details-marker {
+  display: none;
+}
+
+.lc-collapsible summary:hover,
+.lc-collapsible[open] summary {
+  color: var(--lc-fg);
+}
+
+.lc-collapsible-icon {
+  display: grid;
+  place-items: center;
+}
+
+.lc-collapsible-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Exact function name, shown at the top of the expanded tool call */
+.lc-tool-fn {
+  display: inline-block;
+  margin-bottom: 4px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--lc-surface);
+  color: var(--lc-fg);
+  font-family: var(--lc-mono);
+  font-size: 12.5px;
+}
+
+/* Chevron points right when closed, down when open */
+.lc-chevron {
+  display: grid;
+  transform: rotate(-90deg);
+  transition: transform 0.2s;
+}
+
+.lc-chevron svg {
+  width: 14px;
+  height: 14px;
+}
+
+.lc-collapsible[open] .lc-chevron {
+  transform: none;
+}
+
+/* Running state: spinner icon and shimmering label, on the row itself only (not nested steps) */
+.lc-active > summary .lc-collapsible-icon svg {
+  display: none;
+}
+
+.lc-active > summary .lc-collapsible-icon::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: lc-spin 0.8s linear infinite;
+}
+
+.lc-active > summary .lc-collapsible-label {
+  background: linear-gradient(90deg, var(--lc-muted) 40%, var(--lc-fg) 50%, var(--lc-muted) 60%) 0 0 / 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: lc-shimmer 2s linear infinite;
+}
+
+@keyframes lc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes lc-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+/* Expanded content in a rounded card */
+.lc-collapsible-body {
+  margin: 6px 0 4px;
+  padding: 10px 14px 12px;
+  border: 1px solid var(--lc-border);
+  border-radius: 12px;
+  background: var(--lc-bg);
+}
+
+.lc-collapsible-body > :first-child {
+  margin-top: 0;
+}
+
+/* Steps of a group: rows inside the card, their details indented under the label without nested card */
+.lc-steps {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Separator line between steps, rows span the card padding so lines reach its border */
+.lc-steps > .lc-collapsible {
+  margin: 0 -14px;
+  padding: 6px 14px;
+}
+
+.lc-steps > .lc-collapsible + .lc-collapsible {
+  border-top: 1px solid var(--lc-border);
+}
+
+.lc-steps > .lc-collapsible:first-child {
+  padding-top: 0;
+}
+
+.lc-steps > .lc-collapsible:last-child {
+  padding-bottom: 0;
+}
+
+.lc-steps .lc-collapsible-body {
+  margin: 4px 0 4px 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.lc-tool-label {
+  margin: 6px 0 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--lc-muted);
+}
+
+.lc-tool-code {
+  margin: 0;
+  padding: 10px 12px;
+  max-height: 320px;
+  overflow: auto;
+  border-radius: 8px;
+  background: var(--lc-code-bg);
+  font-family: var(--lc-mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.lc-reasoning {
+  color: var(--lc-muted);
+  white-space: pre-wrap;
+}
+
+/* Markdown */
+.lc-md {
+  overflow-wrap: anywhere;
+}
+
+.lc-md > :first-child {
+  margin-top: 0;
+}
+
+.lc-md > :last-child {
+  margin-bottom: 0;
+}
+
+.lc-md p,
+.lc-md ul,
+.lc-md ol,
+.lc-md blockquote,
+.lc-md table,
+.lc-md .lc-code {
+  margin: 0 0 12px;
+}
+
+.lc-md h1,
+.lc-md h2,
+.lc-md h3,
+.lc-md h4 {
+  margin: 20px 0 8px;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.lc-md h1 {
+  font-size: 1.5em;
+}
+
+.lc-md h2 {
+  font-size: 1.3em;
+}
+
+.lc-md h3 {
+  font-size: 1.1em;
+}
+
+.lc-md ul,
+.lc-md ol {
+  padding-left: 24px;
+}
+
+.lc-md li + li {
+  margin-top: 4px;
+}
+
+.lc-md a {
+  color: var(--lc-link);
+  text-decoration: none;
+}
+
+.lc-md blockquote {
+  padding: 10px 14px;
+  border: 1px solid var(--lc-border);
+  border-radius: 12px;
+  background: var(--lc-bg);
+  color: var(--lc-muted);
+}
+
+.lc-md blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+.lc-md hr {
+  border: 0;
+  border-top: 1px solid var(--lc-border);
+  margin: 20px 0;
+}
+
+.lc-md img {
+  max-width: 100%;
+  border-radius: 8px;
+}
+
+/* Rounded table: separate borders, outer border on the table, inner lines on cells */
+.lc-md table {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--lc-border);
+  border-radius: 10px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 14px;
+}
+
+.lc-md th,
+.lc-md td {
+  padding: 6px 12px;
+  border-right: 1px solid var(--lc-border);
+  border-bottom: 1px solid var(--lc-border);
+  text-align: left;
+}
+
+.lc-md th:last-child,
+.lc-md td:last-child {
+  border-right: 0;
+}
+
+.lc-md tr:last-child > td {
+  border-bottom: 0;
+}
+
+.lc-md th {
+  background: var(--lc-surface);
+  font-weight: 600;
+}
+
+.lc-md :not(pre) > code {
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: var(--lc-surface);
+  font-family: var(--lc-mono);
+  font-size: 0.875em;
+}
+
+.lc-code {
+  border: 1px solid var(--lc-border);
+  border-radius: 12px;
+  background: var(--lc-code-bg);
+  overflow: hidden;
+}
+
+.lc-code-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px 4px 14px;
+  font-size: 12px;
+  color: var(--lc-muted);
+}
+
+.lc-code-copy {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+
+.lc-code-copy:hover {
+  background: var(--lc-hover);
+  color: var(--lc-fg);
+}
+
+.lc-code pre {
+  margin: 0;
+  padding: 2px 14px 14px;
+  overflow-x: auto;
+  font-family: var(--lc-mono);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* Composer */
+.lc-composer {
+  max-width: var(--lc-max-width);
+  width: 100%;
+  margin: 0 auto;
+  padding: 8px 16px max(12px, env(safe-area-inset-bottom));
+}
+
+.lc-input {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 4px 4px 14px;
+  border: 1px solid var(--lc-border);
+  border-radius: 18px;
+  background: var(--lc-input-bg);
+  box-shadow: 0 2px 12px light-dark(rgb(0 0 0 / 0.06), rgb(0 0 0 / 0.2));
+  transition: border-color 0.15s;
+}
+
+.lc-input:focus-within {
+  border-color: var(--lc-border-strong);
+}
+
+.lc-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.lc-input textarea {
+  flex: 1;
+  min-width: 0;
+  max-height: 200px;
+  padding: 5px 0;
+  border: 0;
+  outline: 0;
+  resize: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  /* 16px avoids iOS zoom on focus */
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.lc-input textarea::placeholder {
+  color: var(--lc-muted);
+}
+
+/* Toolbar under the input box: files and settings */
+.lc-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin: 4px 0 -4px 8px;
+}
+
+.lc-root .lc-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  color: var(--lc-muted);
+  opacity: 0.6;
+  transition:
+    opacity 0.15s,
+    background 0.15s;
+}
+
+.lc-icon-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.lc-root .lc-icon-btn:hover,
+.lc-root .lc-icon-btn.lc-on {
+  opacity: 1;
+  background: var(--lc-hover);
+}
+
+.lc-root .lc-send {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin: 2px;
+  border-radius: 9px;
+  color: var(--lc-accent);
+  transition:
+    opacity 0.15s,
+    background 0.15s;
+}
+
+.lc-root .lc-send:hover:not(:disabled) {
+  background: var(--lc-hover);
+}
+
+.lc-root .lc-send:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.lc-send svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* Attached files, in the composer and in user messages */
+.lc-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lc-input .lc-attachments {
+  margin: 6px 6px 6px -6px;
+}
+
+.lc-user .lc-attachments {
+  justify-content: flex-end;
+  max-width: 85%;
+}
+
+.lc-file {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  height: 40px;
+  padding: 0 12px 0 10px;
+  border: 1px solid var(--lc-border);
+  border-radius: 10px;
+  background: var(--lc-bg);
+  color: var(--lc-muted);
+  font-size: 13px;
+}
+
+.lc-file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--lc-fg);
+}
+
+.lc-file-image {
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.lc-file-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.lc-root .lc-file-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--lc-accent);
+  color: var(--lc-bg);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.lc-file-image .lc-file-remove {
+  top: 3px;
+  right: 3px;
+}
+
+.lc-file-remove svg {
+  width: 11px;
+  height: 11px;
+}
+
+.lc-file:hover .lc-file-remove,
+.lc-file-remove:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .lc-root .lc-file-remove {
+    opacity: 1;
+  }
+}
+
+/* Settings popover, opens above the gear */
+.lc-settings {
+  position: relative;
+}
+
+.lc-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 260px;
+  padding: 14px;
+  border: 1px solid var(--lc-border);
+  border-radius: 14px;
+  background: var(--lc-input-bg);
+  box-shadow: 0 8px 28px light-dark(rgb(0 0 0 / 0.12), rgb(0 0 0 / 0.4));
+  font-size: 14px;
+}
+
+.lc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lc-field-label {
+  display: flex;
+  justify-content: space-between;
+  color: var(--lc-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.lc-field-value {
+  color: var(--lc-fg);
+}
+
+.lc-field select,
+.lc-field input[type="password"] {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--lc-border);
+  border-radius: 8px;
+  background: var(--lc-bg);
+  color: inherit;
+  font: inherit;
+  /* 16px avoids iOS zoom on focus */
+  font-size: 16px;
+  outline: 0;
+}
+
+.lc-field select:focus,
+.lc-field input[type="password"]:focus {
+  border-color: var(--lc-border-strong);
+}
+
+.lc-field input[type="range"] {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--lc-accent);
+  cursor: pointer;
+}
+
+.lc-ticks {
+  display: flex;
+  justify-content: space-between;
+  color: var(--lc-muted);
+  font-size: 11px;
+}
+
+@media (min-width: 601px) {
+  .lc-field select,
+  .lc-field input[type="password"] {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 600px) {
+  .lc-root {
+    font-size: 16px;
+  }
+
+  .lc-bubble {
+    max-width: 92%;
+  }
+}
+
+/* Syntax highlighting (highlight.js classes) */
+.lc-root .hljs-comment,
+.lc-root .hljs-quote {
+  color: light-dark(#6b6b6b, #8f8f8f);
+  font-style: italic;
+}
+
+.lc-root .hljs-keyword,
+.lc-root .hljs-selector-tag,
+.lc-root .hljs-literal,
+.lc-root .hljs-doctag {
+  color: light-dark(#a1286a, #f28cb1);
+}
+
+.lc-root .hljs-string,
+.lc-root .hljs-regexp,
+.lc-root .hljs-addition,
+.lc-root .hljs-meta .hljs-string {
+  color: light-dark(#2b6e2f, #a5d6a7);
+}
+
+.lc-root .hljs-number,
+.lc-root .hljs-symbol,
+.lc-root .hljs-variable,
+.lc-root .hljs-template-variable {
+  color: light-dark(#9a4f00, #f5b971);
+}
+
+.lc-root .hljs-title,
+.lc-root .hljs-section,
+.lc-root .hljs-selector-id,
+.lc-root .hljs-selector-class {
+  color: light-dark(#2f55b8, #8ab4f8);
+}
+
+.lc-root .hljs-attr,
+.lc-root .hljs-attribute,
+.lc-root .hljs-property,
+.lc-root .hljs-name,
+.lc-root .hljs-tag {
+  color: light-dark(#0a6577, #7dd3e0);
+}
+
+.lc-root .hljs-built_in,
+.lc-root .hljs-type,
+.lc-root .hljs-params,
+.lc-root .hljs-meta {
+  color: light-dark(#663f9e, #c4a7f0);
+}
+
+.lc-root .hljs-deletion {
+  color: var(--lc-error);
+}
+
+.lc-root .hljs-emphasis {
+  font-style: italic;
+}
+
+.lc-root .hljs-strong {
+  font-weight: 600;
+}
