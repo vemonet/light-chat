@@ -2,6 +2,7 @@ node_modules
 dist
 *.log
 .vitest-attachments
+.vitest
 __screenshots__
 .venv/
 __pycache__/

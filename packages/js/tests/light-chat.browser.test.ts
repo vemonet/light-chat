@@ -670,7 +670,8 @@ test("markdown from the backend is sanitized", async () => {
   );
   const chat = mount({ connector });
   await chat.send("hi");
-  await expect.element(ui().getByText("Safe")).toBeVisible();
+  // Part of the paragraph text, the image and link are around it
+  await expect.element(ui().getByText(/^Safe/)).toBeVisible();
   await new Promise((r) => setTimeout(r, 100));
   expect(win.xss).toBeUndefined();
   expect(el.querySelector("script, [onerror]")).toBeNull();

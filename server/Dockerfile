@@ -6,7 +6,7 @@ FROM node:24-slim AS js
 WORKDIR /repo
 # CA certificates for the vp binary
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/* \
-  && npm install -g pnpm@12.9.1
+  && npm install -g pnpm@12.10.1
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json vite.config.ts ./
 COPY packages/js/package.json packages/js/
 COPY packages/solid/package.json packages/solid/
