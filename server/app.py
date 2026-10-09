@@ -2,26 +2,32 @@
 
 import os
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
-import httpx2
 from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
+from light_chat import chat_router
+from light_chat.mcp_apps import PROXIED_REQUEST, UIToolset, proxied_response
 from mcp.server.mcpserver import MCPServer
-from pydantic_ai import Agent
-from pydantic_ai.mcp import MCPToolset
+from pydantic_ai import Agent, RunContext
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 
-# Tool calling models served by the OpenAI-compatible endpoint set in `OPENAI_BASE_URL`, the first is the default
-MODELS = os.getenv("MODELS", "qwen3.8-27b,glm-5.3,kimi-k3,gpt-oss-120b").split(",")
-MCP_URL = os.getenv("MCP_URL", "http://localhost:8000/mcp")
-UNIPROT_API = "https://rest.uniprot.org/uniprotkb"
-HERE = Path(__file__).parent
+from uniprot_apps import UNIPROT_API, apps, fetch_entry, get, http_client
 
-# MCP server with UniProt tools
-mcp = MCPServer("uniprot", instructions="Query the UniProt protein knowledgebase")
+# OpenAI-compatible endpoint, read by the OpenAI provider, with its tool calling models (the first is the default)
+os.environ.setdefault("OPENAI_BASE_URL", "https://llm.ai.egi.eu/v1")
+MODELS = os.getenv("MODELS", "qwen3.8-27b,glm-5.3,kimi-k3,gpt-oss-120b").split(",")
+# UniProt MCP server used by the agent: the one of this app, called in-process, unless an URL is set
+MCP_URL = os.getenv("MCP_URL")
+# Remote MCP servers with tools displaying interactive UIs (MCP Apps and MCP-UI)
+UI_MCP_URLS = os.getenv(
+    # "UI_MCP_URLS", "https://remote-mcp-server-authless.idosalomon.workers.dev/mcp,https://mcp.excalidraw.com/mcp"
+    "UI_MCP_URLS",
+    "https://mcp.excalidraw.com/mcp",
+).split(",")
+
+# MCP server with UniProt tools, and tools showing widgets (MCP Apps) from `uniprot_apps.py`
+mcp = MCPServer("uniprot", instructions="Query the UniProt protein knowledgebase", extensions=[apps])
 
 
 @mcp.tool()
@@ -32,9 +38,12 @@ async def search_proteins(query: str, size: int = 5) -> list[dict[str, Any]]:
         "size": size,
         "fields": "accession,protein_name,gene_names,organism_name,length",
     }
-    async with httpx2.AsyncClient() as client:
-        res = await client.get(f"{UNIPROT_API}/search", params=params)
-        res.raise_for_status()
+    async with http_client() as client:
+        res = await get(client, f"{UNIPROT_API}/search", params)
+    # Invalid queries are explained to the model, which can fix them
+    if res.status_code == 400:
+        raise ValueError(f"Invalid query: {', '.join(res.json().get('messages', []))}")
+    res.raise_for_status()
     return [
         {
             "accession": e["primaryAccession"],
@@ -50,10 +59,8 @@ async def search_proteins(query: str, size: int = 5) -> list[dict[str, Any]]:
 @mcp.tool()
 async def get_protein(accession: str) -> dict[str, Any]:
     """Get a UniProtKB entry by accession (e.g. P01308): name, organism, function and sequence"""
-    async with httpx2.AsyncClient() as client:
-        res = await client.get(f"{UNIPROT_API}/{accession}.json")
-        res.raise_for_status()
-    e = res.json()
+    async with http_client() as client:
+        e = await fetch_entry(client, accession)
     return {
         "accession": e["primaryAccession"],
         "name": e.get("proteinDescription", {}).get("recommendedName", {}).get("fullName", {}).get("value"),
@@ -65,11 +72,27 @@ async def get_protein(accession: str) -> dict[str, Any]:
     }
 
 
-# Agent using the MCP server tools over HTTP, the model is set per request
-agent = Agent(
-    instructions="You are a helpful assistant answering questions about proteins using the UniProt tools.",
-    toolsets=[MCPToolset(MCP_URL)],
-)
+# Agent using the MCP servers tools over HTTP, the model is set per request.
+# Results of all tools are sent to the chat, which shows the ones with a UI
+ui_toolsets = [
+    UIToolset(MCP_URL or mcp, id="uniprot"),
+    *(UIToolset(url, id=urlparse(url).hostname) for url in UI_MCP_URLS if url),
+]
+# Failed tool calls are sent back to the model a few times, e.g. to fix an invalid UniProt query
+agent = Agent(toolsets=ui_toolsets, deps_type=str, retries={"tools": 3})
+
+
+@agent.instructions
+def instructions(ctx: RunContext[str]) -> str:
+    """One system prompt (some models reject several), with the context sent by the frontend (AG-UI `context`),
+    e.g. the state of a widget edited by the user"""
+    prompt = (
+        "You are a helpful assistant answering questions about proteins using the UniProt tools. "
+        "Some tools display interactive UIs to the user, e.g. protein features, 3D structures, search results tables, "
+        "task status or Excalidraw diagrams. Prefer them to show features, structures or long lists of proteins, "
+        "and do not repeat in text what they show."
+    )
+    return f"{prompt}\n\n{ctx.deps}" if ctx.deps else prompt
 
 
 # The MCP session manager must run for the whole app lifetime
@@ -86,10 +109,15 @@ app = FastAPI(title="UniProt agent", lifespan=lifespan)
 async def chat(request: Request) -> Response:
     """AG-UI endpoint streaming the agent response, with the model picked in `forwardedProps.model`"""
     body = await request.json()  # cached, the adapter reads the body again
-    model = (body.get("forwardedProps") or {}).get("model") or MODELS[0]
+    forwarded = body.get("forwardedProps") or {}
+    # MCP request from a widget, e.g. reading its UI resource or calling a tool of its server
+    if PROXIED_REQUEST in forwarded:
+        return await proxied_response(body, ui_toolsets)
+    model = forwarded.get("model") or MODELS[0]
     if model not in MODELS:
         raise HTTPException(400, f"Unknown model {model}, available: {', '.join(MODELS)}")
-    return await AGUIAdapter.dispatch_request(request, agent=agent, model=f"openai-chat:{model}")
+    context = "\n\n".join(f"{c['description']}:\n{c['value']}" for c in body.get("context") or [])
+    return await AGUIAdapter.dispatch_request(request, agent=agent, model=f"openai-chat:{model}", deps=context)
 
 
 @app.get("/models")
@@ -98,12 +126,29 @@ async def models() -> list[str]:
     return MODELS
 
 
-@app.get("/", include_in_schema=False)
-async def index() -> FileResponse:
-    return FileResponse(HERE / "index.html")
-
-
-# light-chat build from the parent repo (`vp run --filter light-chat build`)
-app.mount("/static", StaticFiles(directory=HERE.parent / "packages" / "js" / "dist", check_dir=False), name="static")
+# Chat UI at `/`, the model picked in the settings is sent in `forwardedProps.model`
+app.include_router(
+    chat_router(
+        path="/",
+        url="/chat",
+        title="UniProt agent",
+        settings={"models": MODELS},
+        welcome=(
+            "## Ask about proteins\nThe agent queries [UniProt](https://www.uniprot.org), "
+            "and shows interactive sequence features, 3D structures and results tables."
+        ),
+        placeholder="Ask a question",
+        examples=[
+            "What is the function of human insulin?",
+            "Which proteins are involved in the human circadian clock?",
+            "Show the domains, PTMs and variants of human AKT1",
+            "Where is the E17K mutation of AKT1 relative to its active site? Show the structure",
+            "Find human kinases with disease variants",
+            "Look up human insulin, IRS1 and GLUT4 in UniProt, then draw an Excalidraw diagram of the insulin signaling pathway",
+            # "Look up human insulin, the insulin receptor, IRS1 and GLUT4 in UniProt, then draw an Excalidraw diagram of the insulin signaling pathway: one box per protein with its accession, gene name and length, and arrows showing how the signal flows to glucose uptake, based on their UniProt function descriptions.",
+            # add AKT between IRS1 and GLUT4, look it up in UniProt first
+        ],
+    )
+)
 # Mounted last at the root: it serves `/mcp` and would otherwise shadow the routes above
 app.mount("/", mcp.streamable_http_app(stateless_http=True, json_response=True))

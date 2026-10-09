@@ -38,7 +38,7 @@ function toMessage(t: Turn) {
 export class OpenAIConnector extends HttpConnector {
   protected body(ctx: ConnectorContext) {
     return {
-      ...this.options.body,
+      ...structuredClone(this.options.body),
       stream: true,
       messages: toTurns(ctx.messages).map(toMessage),
     };

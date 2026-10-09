@@ -1,0 +1,18 @@
+[project]
+name = "light-chat"
+version = "0.0.0"
+description = "Lightweight chat UI for AG-UI agents, served from a FastAPI app"
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Vincent Emonet", email = "vincent.emonet@gmail.com" }]
+keywords = ["ag-ui", "chat", "llm", "fastapi", "ui", "mcp", "mcp-apps"]
+requires-python = ">=3.10"
+dependencies = ["fastapi>=0.115"]
+
+[project.optional-dependencies]
+# Tool UIs of MCP servers, with a Pydantic AI agent (`light_chat.mcp_apps`)
+mcp-apps = ["pydantic-ai-slim[ag-ui,mcp]>=2.54.0", "typing-extensions>=4.12"]
+
+[build-system]
+requires = ["uv_build>=0.11.21,<0.12"]
+build-backend = "uv_build"

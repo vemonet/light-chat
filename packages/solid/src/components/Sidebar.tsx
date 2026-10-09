@@ -1,6 +1,7 @@
-import { createSignal, For, Show } from "solid-js";
+import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
+import type { SearchHit } from "../history.ts";
 import type { ChatController } from "../store.ts";
-import { PanelIcon, PlusIcon, TrashIcon } from "./icons.tsx";
+import { CloseIcon, PanelIcon, PlusIcon, SearchIcon, TrashIcon } from "./icons.tsx";
 
 const STORAGE_KEY = "light-chat-sidebar";
 const narrow = () => matchMedia("(max-width: 700px)").matches;
@@ -17,8 +18,32 @@ function initialCollapsed(openByDefault: boolean) {
   return !openByDefault;
 }
 
-/** Conversation history: new chat button and recent conversations, collapsible to two floating buttons */
-export function Sidebar(props: { chat: ChatController }) {
+/** Text with every case-insensitive occurrence of `query` in a <mark> */
+function Highlighted(props: { text: string; query: string }) {
+  const pieces = () => {
+    const lower = props.text.toLowerCase();
+    const q = props.query.toLowerCase();
+    const out: { text: string; match: boolean }[] = [];
+    let from = 0;
+    for (let i = lower.indexOf(q); q && i >= 0; i = lower.indexOf(q, from)) {
+      out.push(
+        { text: props.text.slice(from, i), match: false },
+        { text: props.text.slice(i, i + q.length), match: true },
+      );
+      from = i + q.length;
+    }
+    out.push({ text: props.text.slice(from), match: false });
+    return out;
+  };
+  return <For each={pieces()}>{(p) => (p.match ? <mark>{p.text}</mark> : p.text)}</For>;
+}
+
+/** Conversation history: new chat button, search and recent conversations, collapsible to two floating buttons */
+export function Sidebar(props: {
+  chat: ChatController;
+  /** Called after a search hit's conversation is opened, to highlight the query in the message */
+  onHit?: (messageId: string, query: string) => void;
+}) {
   const { chat } = props;
   const [collapsed, setCollapsed] = createSignal(initialCollapsed(chat.options.sidebarOpen ?? false));
 
@@ -39,6 +64,39 @@ export function Sidebar(props: { chat: ChatController }) {
     void chat.newConversation();
     done();
   };
+  // Search, the query is kept when search is toggled off and back on
+  const store = chat.history;
+  const canSearch = !!store?.search;
+  const [searching, setSearching] = createSignal(false);
+  const [query, setQuery] = createSignal("");
+  const [result, setResult] = createSignal<{ query: string; hits: SearchHit[] }>({ query: "", hits: [] });
+  let searchInput!: HTMLInputElement;
+  let searchRun = 0;
+
+  // Search 150ms after typing stops, again when conversations change, only the latest run is shown
+  createEffect(() => {
+    const q = query().trim();
+    void chat.state.conversations;
+    if (!searching() || !q || !store?.search) return;
+    const run = ++searchRun;
+    const timer = setTimeout(async () => {
+      try {
+        const hits = await store.search!(q);
+        if (run === searchRun) setResult({ query: q, hits });
+      } catch (err) {
+        chat.options.onError?.(err instanceof Error ? err : new Error(String(err)));
+      }
+    }, 150);
+    onCleanup(() => clearTimeout(timer));
+  });
+  const showHits = () => searching() && !!query().trim();
+
+  const openHit = async (hit: SearchHit) => {
+    await chat.openConversation(hit.conversationId);
+    props.onHit?.(hit.messageId, result().query);
+    done();
+  };
+
   const newIcon = () => (
     <span class="lc-new-icon">
       <PlusIcon />
@@ -63,8 +121,8 @@ export function Sidebar(props: { chat: ChatController }) {
           <button
             type="button"
             class="lc-sidebar-btn lc-square"
-            aria-label="New chat"
-            title="New chat"
+            aria-label="New session"
+            title="New session"
             onClick={newChat}
           >
             {newIcon()}
@@ -73,20 +131,92 @@ export function Sidebar(props: { chat: ChatController }) {
       }
     >
       <aside class="lc-sidebar" aria-label="Conversations">
-        <button
-          type="button"
-          class="lc-sidebar-btn lc-square"
-          aria-label="Close sidebar"
-          title="Close sidebar"
-          onClick={toggle}
-        >
-          <PanelIcon />
-        </button>
-        <button type="button" class="lc-sidebar-btn" title="New chat" onClick={newChat}>
+        <div class="lc-sidebar-top">
+          <button
+            type="button"
+            class="lc-sidebar-btn lc-square"
+            aria-label="Close sidebar"
+            title="Close sidebar"
+            onClick={toggle}
+          >
+            <PanelIcon />
+          </button>
+          {/* Search button, expands into a search box with a clear button */}
+          <Show when={canSearch}>
+            <div class="lc-search" classList={{ "lc-on": searching() }}>
+              <button
+                type="button"
+                class="lc-sidebar-btn lc-square"
+                aria-label={searching() ? "Close search" : "Search"}
+                title={searching() ? "Close search" : "Search"}
+                aria-pressed={searching()}
+                onClick={() => setSearching(!searching())}
+              >
+                <SearchIcon />
+              </button>
+              <Show when={searching()}>
+                <input
+                  ref={(el) => {
+                    searchInput = el;
+                    queueMicrotask(() => el.focus());
+                  }}
+                  type="search"
+                  placeholder="Search"
+                  aria-label="Search conversations"
+                  value={query()}
+                  onInput={(e) => setQuery(e.currentTarget.value)}
+                  onKeyDown={(e) => e.key === "Escape" && setSearching(false)}
+                />
+                <Show when={query()}>
+                  <button
+                    type="button"
+                    class="lc-search-clear"
+                    aria-label="Clear search"
+                    title="Clear search"
+                    onClick={() => {
+                      setQuery("");
+                      searchInput.focus();
+                    }}
+                  >
+                    <CloseIcon />
+                  </button>
+                </Show>
+              </Show>
+            </div>
+          </Show>
+        </div>
+        <button type="button" class="lc-sidebar-btn" title="New session" onClick={newChat}>
           {newIcon()}
           <span>New</span>
         </button>
-        <Show when={chat.state.conversations.length}>
+        {/* Search results, one row per matching message */}
+        <Show when={showHits()}>
+          <div class="lc-recents">
+            {result().hits.length
+              ? `${result().hits.length} result${result().hits.length > 1 ? "s" : ""}`
+              : result().query === query().trim()
+                ? "No results"
+                : "Searching..."}
+          </div>
+          <nav class="lc-conversations">
+            <For each={result().hits}>
+              {(hit) => (
+                <button
+                  type="button"
+                  class="lc-hit"
+                  classList={{ "lc-current": hit.conversationId === chat.state.conversationId }}
+                  onClick={() => void openHit(hit)}
+                >
+                  <span class="lc-hit-title">{hit.title}</span>
+                  <span class="lc-hit-snippet">
+                    <Highlighted text={hit.snippet} query={result().query} />
+                  </span>
+                </button>
+              )}
+            </For>
+          </nav>
+        </Show>
+        <Show when={!showHits() && chat.state.conversations.length}>
           <div class="lc-recents">Recents</div>
           <nav class="lc-conversations">
             <For each={chat.state.conversations}>

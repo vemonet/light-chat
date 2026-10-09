@@ -1,0 +1,11 @@
+# Demo server, configured in `.env` (OPENAI_BASE_URL, OPENAI_API_KEY, MODELS, UI_MCP_URLS): docker compose up -d
+name: light-chat
+services:
+  server:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    env_file: .env
+    ports:
+      - "8083:8000"
+    restart: unless-stopped

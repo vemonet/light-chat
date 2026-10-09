@@ -1,22 +1,27 @@
+import { createContext } from "solid-js";
 import { createStore, produce, unwrap } from "solid-js/store";
 import { AgUiConnector } from "./connectors/agui.ts";
 import { IndexedDBHistory, type ConversationSummary, type HistoryStore } from "./history.ts";
 import { uid } from "./utils.ts";
 import type {
+  ActivityPart,
   ChatEvent,
   ChatOptions,
   ChatSettings,
   FilePart,
+  McpRequest,
   Message,
   Part,
   Rating,
-  SettingTarget,
-  SettingTargets,
-  SettingValues,
+  StepPart,
+  SubagentPart,
   ToolPart,
 } from "./types.ts";
 
 export type ChatController = ReturnType<typeof createChat>;
+
+/** Controller of the chat, for components deep in the tree like widgets */
+export const ChatContext = createContext<ChatController>();
 
 const newMessage = (role: Message["role"], parts: Part[]): Message => ({
   id: uid(),
@@ -25,18 +30,62 @@ const newMessage = (role: Message["role"], parts: Part[]): Message => ({
   createdAt: new Date(),
 });
 
+/** Sub-agent part with this id, nested sub-agents included */
+function findSubagent(parts: Part[], id: string): SubagentPart | undefined {
+  for (const p of parts) {
+    if (p.type !== "subagent") continue;
+    if (p.id === id) return p;
+    const nested = findSubagent(p.parts, id);
+    if (nested) return nested;
+  }
+}
+
+/** Activity part with this id, in sub-agents too */
+function findActivity(parts: Part[], id: string): ActivityPart | undefined {
+  for (const p of parts) {
+    if (p.type === "activity" && p.id === id) return p;
+    const nested = p.type === "subagent" ? findActivity(p.parts, id) : undefined;
+    if (nested) return nested;
+  }
+}
+
+/** Mark running tools, steps and sub-agents as done and end open timings, e.g. when the stream ends */
+function close(parts: Part[], end: number) {
+  for (const p of parts) {
+    if (p.type === "tool" || p.type === "step") p.status = "done";
+    if (p.type === "subagent") {
+      if (p.status === "running") p.status = "done";
+      close(p.parts, end);
+    }
+    if ("startedAt" in p && p.startedAt) p.endedAt ??= end;
+  }
+}
+
+const stringify = (v: unknown) => (typeof v === "string" ? v : JSON.stringify(v, null, 2));
+
 /** Apply a normalized stream event to the assistant message being streamed */
 function apply(msg: Message, e: ChatEvent) {
-  const last = msg.parts[msg.parts.length - 1];
-  const tool = (id: string) => msg.parts.find((p): p is ToolPart => p.type === "tool" && p.id === id);
+  // Events from a sub-agent are added to its parts
+  const { parts } = (e.subagent && findSubagent(msg.parts, e.subagent)) || msg;
+  const last = parts[parts.length - 1];
+  const tool = (id: string) => parts.find((p): p is ToolPart => p.type === "tool" && p.id === id);
+  const now = Date.now();
+  // A new part ends the thinking step before it
+  const push = (p: Part) => {
+    if (last?.type === "reasoning") last.endedAt ??= now;
+    parts.push(p);
+  };
   switch (e.type) {
     case "text":
+      if (last?.type === "text") last.text += e.delta;
+      else push({ type: "text", text: e.delta });
+      break;
     case "reasoning":
-      if (last?.type === e.type) last.text += e.delta;
-      else msg.parts.push({ type: e.type, text: e.delta });
+      if (last?.type === "reasoning") last.text += e.delta;
+      else push({ type: "reasoning", text: e.delta, startedAt: now });
       break;
     case "tool-start":
-      msg.parts.push({ type: "tool", id: e.id, name: e.name, args: "", status: "running" });
+      push({ type: "tool", id: e.id, name: e.name, args: "", status: "running", startedAt: now });
       break;
     case "tool-args": {
       const t = tool(e.id);
@@ -46,11 +95,54 @@ function apply(msg: Message, e: ChatEvent) {
     case "tool-result": {
       const t = tool(e.id);
       if (t) {
-        t.result = typeof e.result === "string" ? e.result : JSON.stringify(e.result, null, 2);
+        t.result = stringify(e.result);
         t.status = "done";
+        t.endedAt ??= now;
       }
       break;
     }
+    case "step-start":
+      push({ type: "step", name: e.name, status: "running", startedAt: now });
+      break;
+    case "step-end": {
+      const step = parts.findLast(
+        (p): p is StepPart => p.type === "step" && p.name === e.name && p.status === "running",
+      );
+      if (step) close([step], now);
+      break;
+    }
+    case "subagent-start": {
+      // A suspended sub-agent is announced again when resumed
+      const sub = findSubagent(msg.parts, e.id);
+      if (sub) {
+        sub.status = "running";
+        sub.endedAt = undefined;
+      } else {
+        const { id, name, description } = e;
+        push({ type: "subagent", id, name, description, parts: [], status: "running", startedAt: now });
+      }
+      break;
+    }
+    case "subagent-end": {
+      const sub = findSubagent(msg.parts, e.id);
+      if (!sub) break;
+      if (e.result !== undefined) sub.result = stringify(e.result);
+      if (e.error) {
+        sub.status = "error";
+        sub.error = e.error;
+      }
+      close([sub], now);
+      break;
+    }
+    case "activity": {
+      const activity = parts.find((p): p is ActivityPart => p.type === "activity" && p.id === e.id);
+      if (activity) activity.content = e.content;
+      else push({ type: "activity", id: e.id, activityType: e.activityType, content: e.content });
+      break;
+    }
+    case "state":
+      msg.state = e.state;
+      break;
     case "error":
       msg.error = e.message;
   }
@@ -66,20 +158,19 @@ function loadSettings(): ChatSettings {
   }
 }
 
-/** Settings options normalized for the UI: enabled flag and selectable values */
-function settingsConfig(config: ChatOptions["settings"] = {}) {
-  const values = (c?: string[] | SettingValues) => (Array.isArray(c) ? c : (c?.values ?? []));
-  const apiKey = !!config.apiKey;
-  const models = values(config.models);
-  const effort = values(config.effort);
-  return { apiKey, models, effort, enabled: apiKey || models.length > 0 || effort.length > 0 };
-}
+type SettingsOptions = NonNullable<ChatOptions["settings"]>;
 
-/** Targets explicitly defined in the settings options, the connector defaults apply to the others */
-function settingTargets(config: ChatOptions["settings"] = {}): SettingTargets {
-  const target = (c?: boolean | string[] | SettingTarget) =>
-    typeof c === "object" && !Array.isArray(c) && (c.header || c.query || c.body) ? c : undefined;
-  return { apiKey: target(config.apiKey), model: target(config.models), effort: target(config.effort) };
+/** Settings options normalized: enabled flags, selectable values and callbacks from the options */
+function settingsConfig(config: SettingsOptions = {}) {
+  const values = (c: SettingsOptions["models"]) => (Array.isArray(c) ? c : (c?.values ?? []));
+  const apply = (c: SettingsOptions[keyof SettingsOptions]) =>
+    typeof c === "object" && !Array.isArray(c) ? c.apply : undefined;
+  return {
+    apiKey: !!config.apiKey,
+    models: values(config.models),
+    effort: values(config.effort),
+    apply: { apiKey: apply(config.apiKey), model: apply(config.models), effort: apply(config.effort) },
+  };
 }
 
 /** Saved settings, restricted to the enabled ones and to valid values */
@@ -116,7 +207,6 @@ export function createChat(options: ChatOptions) {
     conversations: [] as ConversationSummary[],
   });
   const config = settingsConfig(options.settings);
-  const targets = settingTargets(options.settings);
   const [settings, setSettings] = createStore(initSettings(config));
   const connector = options.connector ?? new AgUiConnector({ url: options.url ?? "" });
   const history: HistoryStore | undefined =
@@ -135,22 +225,29 @@ export function createChat(options: ChatOptions) {
     if (history) setState("conversations", await history.list());
   }
 
+  // Saves run one after the other, so a slow early save can not overwrite a later one
+  let saving = Promise.resolve();
+
   /** Save the current conversation, a snapshot is sent so stores never hold live objects */
-  async function persist() {
-    if (!history || !state.messages.length) return;
+  function persist() {
+    if (!history || !state.messages.length) return saving;
     const messages = structuredClone(unwrap(state.messages));
-    try {
-      await history.save({
-        id: state.conversationId,
-        title: titleOf(messages),
-        messages,
-        createdAt: messages[0].createdAt,
-        updatedAt: new Date(),
-      });
-      await refreshList();
-    } catch (err) {
-      fail(err);
-    }
+    const conversation = {
+      id: state.conversationId,
+      title: titleOf(messages),
+      messages,
+      createdAt: messages[0].createdAt,
+      updatedAt: new Date(),
+    };
+    saving = saving.then(async () => {
+      try {
+        await history.save(conversation);
+        await refreshList();
+      } catch (err) {
+        fail(err);
+      }
+    });
+    return saving;
   }
 
   async function send(text: string, files: FilePart[] = []) {
@@ -167,7 +264,7 @@ export function createChat(options: ChatOptions) {
     const ctrl = (controller = new AbortController());
     setState("streaming", true);
     const threadId = state.conversationId;
-    const ctx = { messages, settings: { ...settings }, targets, signal: ctrl.signal, threadId };
+    const ctx = { messages, settings: { ...settings }, apply: config.apply, signal: ctrl.signal, threadId };
     const events = connector.stream(ctx)[Symbol.asyncIterator]();
     // Race each event against abort, so stop() is immediate even if a connector ignores the signal
     const aborted = new Promise<never>((_, reject) =>
@@ -192,12 +289,14 @@ export function createChat(options: ChatOptions) {
       }
     } finally {
       void events.return?.();
-      // Tools without result (client-side or interrupted) are considered done when the stream ends
+      // Tools without result (client-side or interrupted) and open steps are considered done when the stream ends
+      const end = Date.now();
       setState(
         "messages",
         i,
         produce((m) => {
-          for (const p of m.parts) if (p.type === "tool") p.status = "done";
+          m.endedAt = end;
+          close(m.parts, end);
         }),
       );
       setState("streaming", false);
@@ -230,6 +329,29 @@ export function createChat(options: ChatOptions) {
 
   const stop = () => controller?.abort();
 
+  /** Send an MCP request of a widget to its server through the connector */
+  async function mcpRequest(request: McpRequest) {
+    if (!connector.mcpRequest) throw new Error("The connector does not support MCP requests from widgets");
+    return connector.mcpRequest(request, {
+      settings: { ...settings },
+      apply: config.apply,
+      threadId: state.conversationId,
+    });
+  }
+
+  /** Save the context a widget gives to the model, sent with the next requests */
+  function setWidgetContext(activityId: string, context: unknown) {
+    const i = state.messages.findIndex((m) => findActivity(m.parts, activityId));
+    if (i < 0) return;
+    setState(
+      "messages",
+      i,
+      produce((m) => (findActivity(m.parts, activityId)!.context = context)),
+    );
+    // Saved with the response when it is streaming
+    if (!state.streaming) void persist();
+  }
+
   /** Stop the current response and wait for it to be saved before switching conversation */
   async function settle() {
     stop();
@@ -259,6 +381,8 @@ export function createChat(options: ChatOptions) {
   async function deleteConversation(id: string) {
     if (!history) return;
     if (id === state.conversationId) await newConversation();
+    // A queued save would bring the conversation back
+    await saving;
     try {
       await history.delete(id);
       await refreshList();
@@ -278,6 +402,8 @@ export function createChat(options: ChatOptions) {
     send,
     stop,
     rate,
+    mcpRequest,
+    setWidgetContext,
     setSetting,
     newConversation,
     openConversation,

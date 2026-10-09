@@ -1,0 +1,101 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body {
+        margin: 0;
+        padding: 16px 18px;
+        font:
+          14px/1.5 system-ui,
+          sans-serif;
+        color: #1f2328;
+        background: #f6f8fa;
+      }
+      body.dark {
+        color: #e6edf3;
+        background: #161b22;
+      }
+      .temp {
+        font-size: 36px;
+        font-weight: 600;
+      }
+      .muted {
+        opacity: 0.65;
+      }
+      button {
+        margin: 10px 8px 0 0;
+        padding: 6px 12px;
+        border: 1px solid #8c959f;
+        border-radius: 8px;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Minimal MCP App, speaking the MCP Apps JSON-RPC protocol over postMessage without the SDK -->
+    <div class="muted" id="city">Loading</div>
+    <div class="temp" id="temp">-</div>
+    <div id="condition"></div>
+    <button id="refresh">Refresh</button>
+    <button id="ask">Ask for the forecast</button>
+    <script>
+      let lastId = 0;
+      const pending = {};
+      const request = (method, params) =>
+        new Promise((resolve, reject) => {
+          const id = ++lastId;
+          pending[id] = { resolve, reject };
+          parent.postMessage({ jsonrpc: "2.0", id, method, params }, "*");
+        });
+      const notify = (method, params) => parent.postMessage({ jsonrpc: "2.0", method, params }, "*");
+      const $ = (id) => document.getElementById(id);
+      let city = "";
+
+      const show = (result) => {
+        const w = result.structuredContent;
+        $("temp").textContent = `${w.temperature} C`;
+        $("condition").textContent = w.condition;
+        notify("ui/notifications/size-changed", { width: 0, height: document.documentElement.scrollHeight });
+      };
+
+      addEventListener("message", ({ data: m }) => {
+        if (m.id !== undefined && pending[m.id]) {
+          m.error ? pending[m.id].reject(m.error) : pending[m.id].resolve(m.result);
+          delete pending[m.id];
+        } else if (m.method === "ui/notifications/tool-input") {
+          city = m.params.arguments.city;
+          $("city").textContent = `Weather in ${city}`;
+        } else if (m.method === "ui/notifications/tool-result") {
+          show(m.params);
+        } else if (m.method === "ui/notifications/host-context-changed" && m.params.theme) {
+          document.body.classList.toggle("dark", m.params.theme === "dark");
+        }
+      });
+
+      // Calls the tool again through the host, and tells the model what the user now sees
+      $("refresh").onclick = async () => {
+        const result = await request("tools/call", { name: "get_weather", arguments: { city } });
+        show(result);
+        const w = result.structuredContent;
+        await request("ui/update-model-context", {
+          content: [{ type: "text", text: `The widget shows ${w.temperature} C in ${city}` }],
+        });
+      };
+      $("ask").onclick = () =>
+        request("ui/message", { role: "user", content: [{ type: "text", text: `What is the forecast in ${city}?` }] });
+
+      request("ui/initialize", {
+        protocolVersion: "2026-01-26",
+        appInfo: { name: "Weather", version: "1.0.0" },
+        appCapabilities: {},
+      }).then((r) => {
+        document.body.classList.toggle("dark", r.hostContext?.theme === "dark");
+        notify("ui/notifications/initialized", {});
+      });
+    </script>
+  </body>
+</html>

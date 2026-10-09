@@ -1,9 +1,9 @@
-import { createSignal, For, Show } from "solid-js";
+import { createEffect, createSignal, For, on, Show } from "solid-js";
 import type { ChatController } from "../store.ts";
 import type { FilePart } from "../types.ts";
 import { PlusIcon, ReturnIcon, StopIcon } from "./icons.tsx";
 import { FileChip } from "./Parts.tsx";
-import { Settings } from "./Settings.tsx";
+import { ApiKeySetting, EffortSetting, ModelSetting } from "./Settings.tsx";
 
 const readFile = (file: File) =>
   new Promise<FilePart>((resolve, reject) => {
@@ -19,13 +19,13 @@ const readFile = (file: File) =>
     reader.readAsDataURL(file);
   });
 
-/** Input box (attachments, auto-growing textarea, send), with a toolbar row under it (files, settings) */
+/** Input box (attachments, auto-growing textarea, send), with a toolbar row under it (files, model, effort, API key) */
 export function Composer(props: { chat: ChatController; onSend: () => void }) {
   const { chat } = props;
   const [input, setInput] = createSignal("");
   const [files, setFiles] = createSignal<FilePart[]>([]);
   const attachments = chat.options.attachments !== false;
-  const hasSettings = chat.config.enabled;
+  const { config } = chat;
   let textarea!: HTMLTextAreaElement;
   let fileInput!: HTMLInputElement;
 
@@ -59,6 +59,15 @@ export function Composer(props: { chat: ChatController; onSend: () => void }) {
       submit();
     }
   };
+
+  // Focus the input when a new empty conversation starts (skipped on touch to not pop the keyboard)
+  createEffect(
+    on(
+      () => chat.state.conversationId,
+      () => !touch && !chat.state.messages.length && textarea.focus(),
+      { defer: true },
+    ),
+  );
 
   return (
     <form
@@ -109,8 +118,8 @@ export function Composer(props: { chat: ChatController; onSend: () => void }) {
           </Show>
         </div>
       </div>
-      {/* Toolbar right under the input box: files and settings */}
-      <Show when={attachments || hasSettings}>
+      {/* Toolbar right under the input box: files on the left, enabled settings on the right */}
+      <Show when={attachments || config.models.length || config.effort.length || config.apiKey}>
         <div class="lc-toolbar">
           <Show when={attachments}>
             <button
@@ -133,9 +142,18 @@ export function Composer(props: { chat: ChatController; onSend: () => void }) {
               }}
             />
           </Show>
-          <Show when={hasSettings}>
-            <Settings chat={chat} />
-          </Show>
+          {/* Settings on the right, API key at the edge */}
+          <div class="lc-toolbar-settings">
+            <Show when={config.models.length}>
+              <ModelSetting chat={chat} />
+            </Show>
+            <Show when={config.effort.length}>
+              <EffortSetting chat={chat} />
+            </Show>
+            <Show when={config.apiKey}>
+              <ApiKeySetting chat={chat} />
+            </Show>
+          </div>
         </div>
       </Show>
     </form>

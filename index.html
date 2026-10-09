@@ -55,6 +55,10 @@
     <div id="chat"></div>
     <script type="module">
       import { AgUiConnector, Chat, OpenAIConnector } from "/packages/js/src/index.ts";
+      import { installMockBackend } from "/demo/mock.ts";
+
+      // Answers /api/openai and /api/agui in the browser, so the demo also runs as a static site
+      installMockBackend();
 
       const $ = (id) => document.getElementById(id);
       let chat;
@@ -63,17 +67,25 @@
       function mount() {
         chat?.destroy();
         const protocol = $("protocol").value;
-        const url = $("url").value || `/api/${protocol}`;
+        const url = $("url").value || `api/${protocol}`;
         chat = new Chat("chat", {
           connector: protocol === "openai" ? new OpenAIConnector({ url }) : new AgUiConnector({ url }),
           settings: {
             apiKey: true,
             models: ["qwen-3.8", "kimi-k3", "gpt-5"],
-            // Custom target: sent as ?effort= query parameter instead of the connector default
-            effort: { values: ["minimal", "low", "medium", "high"], query: "effort" },
+            // Custom callback: sent as ?effort= query parameter instead of the connector default
+            effort: {
+              values: ["minimal", "low", "medium", "high"],
+              apply: (req, effort) => req.url.searchParams.set("effort", effort),
+            },
           },
           theme: $("theme").value,
-          examples: ["What is the weather in Lausanne?", "Write a python snippet to fetch weather data"],
+          examples: [
+            "What is the weather in Lausanne?",
+            "Write a python snippet to fetch weather data",
+            "Plan my day with sub-agents",
+            "Show the weather widget",
+          ],
           welcome:
             "## How can I help you today?\nAsk anything, the local mock answers with reasoning, a tool call and markdown.",
           onRate: (message, rating) => console.log("rated", rating, message),

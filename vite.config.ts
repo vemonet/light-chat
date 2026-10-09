@@ -1,12 +1,48 @@
 import { defineConfig, type Plugin } from "vite-plus";
+import { playwright } from "vite-plus/test/browser-playwright";
 import solid from "rolldown-plugin-solid";
-import { mockBackend } from "./demo/mock.ts";
 
 // Shared lint, format and test config for the workspace, packages only define their `pack` build
 export default defineConfig({
-  // Dev playground (`vp dev`): serves index.html with mock streaming endpoints
+  // Demo playground: `vp dev` serves index.html, `vp build` outputs a static site to dist/ (GitHub Pages)
   // rolldown-plugin-solid is typed against its own rolldown version, it works as a Vite plugin
-  plugins: [solid() as Plugin, mockBackend()],
+  plugins: [solid() as Plugin],
+  // Relative asset URLs, so the demo works under any path, e.g. https://<user>.github.io/<repo>/
+  base: "./",
+  test: {
+    projects: [
+      // Connectors and parsing, in Node
+      {
+        extends: true,
+        test: {
+          name: "unit",
+          include: ["packages/*/tests/**/*.test.ts"],
+          exclude: ["**/node_modules/**", "**/*.browser.test.ts"],
+        },
+      },
+      // Components and the Chat class, in a real headless Chromium
+      {
+        extends: true,
+        test: {
+          name: "browser",
+          include: ["packages/*/tests/**/*.browser.test.ts"],
+          browser: {
+            enabled: true,
+            provider: playwright() as any,
+            headless: true,
+            instances: [{ browser: "chromium" }],
+            // Desktop width, the sidebar is an overlay below 700px
+            viewport: { width: 1280, height: 800 },
+          },
+        },
+      },
+      // End user tests: builds the demo, serves it like GitHub Pages and drives it with Playwright
+      {
+        extends: true,
+        test: { name: "e2e", include: ["tests/**/*.test.ts"], testTimeout: 30_000, hookTimeout: 60_000 },
+      },
+    ],
+  },
   lint: {
     // Solid refs (`let el!: T` + `ref={el}`) are assigned by the JSX compiler
     rules: { "no-unassigned-vars": "off" },
@@ -18,5 +54,32 @@ export default defineConfig({
   fmt: {
     printWidth: 120,
     ignorePatterns: [".claude/**", "**/dist/**"],
+  },
+  staged: {
+    "*.{js,ts,tsx,vue,svelte}": "vp check --fix",
+  },
+  run: {
+    // cache: true,
+    tasks: {
+      // Start python server
+      server: {
+        dependsOn: ["light-chat#build"],
+        // The chat UI is served from the Python package, with the JS just built
+        command: [
+          "mkdir -p packages/python/src/light_chat/static",
+          "cp packages/js/dist/index.js packages/python/src/light_chat/static/light-chat.js",
+          "cd server && uv run --env-file .env uvicorn app:app --port 8083 --reload",
+        ],
+      },
+      "build:py": {
+        dependsOn: ["light-chat#build"],
+        command: [
+          "mkdir -p packages/python/src/light_chat/static",
+          "cp packages/js/dist/index.js packages/python/src/light_chat/static/light-chat.js",
+          "uv build --package light-chat --out-dir packages/python/dist",
+        ],
+        cache: false,
+      },
+    },
   },
 });

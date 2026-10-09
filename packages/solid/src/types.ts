@@ -9,7 +9,13 @@ export interface TextPart {
   text: string;
 }
 
-export interface ReasoningPart {
+/** Start and end of a thinking or tool call step, epoch ms. End is unset while running */
+export interface Timing {
+  startedAt?: number;
+  endedAt?: number;
+}
+
+export interface ReasoningPart extends Timing {
   type: "reasoning";
   text: string;
 }
@@ -23,7 +29,7 @@ export interface FilePart {
   data: string;
 }
 
-export interface ToolPart {
+export interface ToolPart extends Timing {
   type: "tool";
   id: string;
   name: string;
@@ -33,7 +39,37 @@ export interface ToolPart {
   status: "running" | "done";
 }
 
-export type Part = TextPart | ReasoningPart | ToolPart | FilePart;
+/** Named step of the agent run, e.g. a graph node */
+export interface StepPart extends Timing {
+  type: "step";
+  name: string;
+  status: "running" | "done";
+}
+
+/** Sub-agent run, its own text and steps are streamed inside */
+export interface SubagentPart extends Timing {
+  type: "subagent";
+  id: string;
+  name: string;
+  description?: string;
+  parts: Part[];
+  status: "running" | "done" | "error";
+  result?: string;
+  error?: string;
+}
+
+/** Structured progress update from the agent, e.g. a plan or a search status, replaced as it changes */
+export interface ActivityPart {
+  type: "activity";
+  id: string;
+  /** Kind of activity, e.g. "PLAN" */
+  activityType: string;
+  content: unknown;
+  /** Context set by a widget for the model (MCP Apps `ui/update-model-context`), sent with the next requests */
+  context?: unknown;
+}
+
+export type Part = TextPart | ReasoningPart | ToolPart | FilePart | StepPart | SubagentPart | ActivityPart;
 
 export interface Message {
   id: string;
@@ -41,45 +77,61 @@ export interface Message {
   /** Ordered content blocks, text and tool calls can be interleaved */
   parts: Part[];
   createdAt: Date;
+  /** When an assistant response finished streaming, epoch ms */
+  endedAt?: number;
   rating?: Rating;
   error?: string;
+  /** Agent shared state at the end of the response (AG-UI), sent back with the next request */
+  state?: unknown;
 }
 
-/** Normalized stream events, every connector converts its backend stream to these */
-export type ChatEvent =
+/**
+ * Normalized stream events, every connector converts its backend stream to these.
+ * `subagent` is the id of the sub-agent run the event comes from, unset for the main agent.
+ */
+export type ChatEvent = (
   | { type: "text"; delta: string }
   | { type: "reasoning"; delta: string }
   | { type: "tool-start"; id: string; name: string }
   | { type: "tool-args"; id: string; delta: string }
   | { type: "tool-result"; id: string; result: unknown }
-  | { type: "error"; message: string };
+  | { type: "step-start"; name: string }
+  | { type: "step-end"; name: string }
+  | { type: "subagent-start"; id: string; name: string; description?: string }
+  | { type: "subagent-end"; id: string; result?: unknown; error?: string }
+  | { type: "activity"; id: string; activityType: string; content: unknown }
+  | { type: "state"; state: unknown }
+  | { type: "error"; message: string }
+) & { subagent?: string };
 
-/** Values chosen by the user in the settings menu */
+/** MCP request sent by a widget to the server of its tool, proxied by the backend */
+export interface McpRequest {
+  /** Server of the tool, from the `mcp-apps` activity */
+  serverHash?: string;
+  serverId?: string;
+  method: string;
+  params?: Record<string, unknown>;
+}
+
+/** Values chosen by the user in the toolbar under the input box */
 export interface ChatSettings {
   apiKey?: string;
   model?: string;
   effort?: string;
 }
 
-/** Where a setting value is put in the request, any combination of header, query and body */
-export interface SettingTarget {
-  /** HTTP header name, e.g. "Authorization" */
-  header?: string;
-  /** URL query parameter name */
-  query?: string;
-  /** Body key, dots for nested keys, e.g. "forwardedProps.model" */
-  body?: string;
-  /** Prepended to the value, e.g. "Bearer " */
-  prefix?: string;
+/** Request built by a connector, setting callbacks can change it before it is sent */
+export interface ChatRequest {
+  url: URL;
+  headers: Record<string, string>;
+  body: Record<string, unknown>;
 }
 
-/** Target of each setting value, keyed like `ChatSettings` */
-export type SettingTargets = Partial<Record<keyof ChatSettings, SettingTarget>>;
+/** Add a setting value to the request, e.g. `(req, model) => (req.body.model = model)` */
+export type ApplySetting = (req: ChatRequest, value: string) => void;
 
-/** Selectable values of a setting, with an optional custom target */
-export interface SettingValues extends SettingTarget {
-  values: string[];
-}
+/** Callback of each setting, keyed like `ChatSettings` */
+export type SettingAppliers = Partial<Record<keyof ChatSettings, ApplySetting>>;
 
 export interface ChatOptions {
   /** Backend connector, e.g. `new OpenAIConnector({ url })`. Default: AG-UI connector on `url` */
@@ -103,16 +155,21 @@ export interface ChatOptions {
   /** Open the history sidebar on the first visit, then the user choice is remembered. Default: false */
   sidebarOpen?: boolean;
   /**
-   * Settings the user can change from the gear menu, saved in localStorage.
-   * All disabled by default, the gear is hidden when none is enabled.
+   * URL query parameter holding the open conversation id, e.g. `?session=ID`, opened on page load.
+   * Only used with the history. Default: "session", false to leave the URL unchanged.
+   */
+  urlParam?: string | false;
+  /**
+   * Settings the user can change in the toolbar under the input box, saved in localStorage.
+   * All disabled by default. `apply` replaces how the connector adds the value to the request.
    */
   settings?: {
-    /** Ask for an API key. Default target: `Authorization: Bearer <key>` header */
-    apiKey?: boolean | SettingTarget;
-    /** Models to choose from, the first one is the default. Default target defined by the connector */
-    models?: string[] | SettingValues;
-    /** Effort levels for a slider, the middle one is the default. Default target defined by the connector */
-    effort?: string[] | SettingValues;
+    /** Ask for an API key. Default: `Authorization: Bearer <key>` header */
+    apiKey?: boolean | { apply?: ApplySetting };
+    /** Models to choose from, the first one is the default. Default apply defined by the connector */
+    models?: string[] | { values: string[]; apply?: ApplySetting };
+    /** Effort levels for a slider, the middle one is the default. Default apply defined by the connector */
+    effort?: string[] | { values: string[]; apply?: ApplySetting };
   };
   /** Enables thumbs up/down buttons under assistant messages */
   onRate?: (message: Message, rating: Rating) => void;

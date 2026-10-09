@@ -9,13 +9,15 @@ new Chat("chat", { url: "/agent" });
 - Streaming for **AG-UI** (default) and **OpenAI-compatible** (`/chat/completions`) backends, or any other through a custom connector
 - Tool calls shown as compact collapsible rows, with highlighted JSON arguments and results
 - Reasoning / thinking content in a collapsible block, consecutive thinking and tool call steps grouped in one line showing the running step
-- Conversation history in a collapsible sidebar, stored in IndexedDB or your own store
+- AG-UI sub-agents shown as collapsible rows with their own nested content, plus run steps and activity updates
+- Interactive tool UIs from [MCP Apps](https://modelcontextprotocol.io/extensions/apps) and [MCP-UI](https://mcpui.dev) servers, in sandboxed iframes
+- Conversation history in a collapsible sidebar with search, stored in IndexedDB or your own store
 - File attachments (button or paste), sent as multimodal content
-- Optional settings menu (API key, model, effort), saved in localStorage
+- Optional settings in the toolbar under the input box (model, effort, API key), saved in localStorage
 - Markdown rendered with [marked](https://marked.js.org), sanitized with [DOMPurify](https://github.com/cure53/DOMPurify), code highlighted with [highlight.js](https://highlightjs.org) (common languages)
 - Copy, date/time and optional thumbs up/down rating under each message
 - Light/dark theme through the standard CSS `color-scheme` and `light-dark()`
-- Works on desktop and mobile, zero runtime dependencies (Solid, marked, DOMPurify and highlight.js are bundled), ~72 kB gzipped
+- Works on desktop and mobile, zero runtime dependencies (Solid, marked, DOMPurify and highlight.js are bundled), ~79 kB gzipped
 - Also available as a SolidJS component: [`light-chat-solid`](../solid/README.md)
 
 ## Install
@@ -31,9 +33,19 @@ import { Chat } from "light-chat";
 Or without a bundler:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/light-chat"></script>
+<script type="module">
+  import { Chat } from "https://cdn.jsdelivr.net/npm/light-chat";
+
+  new Chat("chat", { url: "/api/chat" });
+</script>
+```
+
+A classic script build is also provided, it exposes the `Chat` global, with the connectors attached to it (e.g. `Chat.OpenAIConnector`):
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/light-chat/dist/index.iife.js"></script>
 <script>
-  new LightChat.Chat("chat", { url: "/api/chat" });
+  new Chat("chat", { url: "/api/chat" });
 </script>
 ```
 
@@ -63,11 +75,12 @@ const chat = new Chat("chat", {
   attachments: true, // show the + button to attach files
   history: true, // conversation history sidebar, false to disable, or your own HistoryStore
   sidebarOpen: false, // open the sidebar on first visit, then the user choice is remembered
+  urlParam: "session", // open conversation id kept in the URL (?session=ID) and opened on load, false to disable
   settings: {
-    // all disabled by default, the gear button is hidden when none is enabled
-    apiKey: true, // ask for an API key
-    models: ["qwen-3.8", "kimi-k3"], // model picker, first is the default
+    // all disabled by default, each enabled one is shown in the toolbar under the input box
+    models: ["qwen-3.8", "kimi-k3"], // model menu, first is the default
     effort: ["low", "medium", "high"], // effort slider, middle is the default
+    apiKey: true, // API key input
   },
   onRate: (message, rating) => console.log(rating, message), // shows thumbs up/down, rating is "up" | "down" | null
   onError: (error) => console.error(error),
@@ -94,17 +107,17 @@ Settings chosen by the user are saved in `localStorage` (key `light-chat-setting
 | Model   | body `model`                  | body `forwardedProps.model`   |
 | Effort  | body `reasoning_effort`       | body `forwardedProps.effort`  |
 
-Define a target to choose where a value goes: a `header`, a `query` parameter and/or a `body` key (dots for nested keys), with an optional `prefix`:
+Pass an `apply` callback to change how a value is added to the request. It receives the request (`url` as a `URL`, `headers` and `body` objects) and the value:
 
 ```js
 settings: {
-  apiKey: { header: "X-Api-Key" },
-  models: { values: ["qwen-3.8", "kimi-k3"], query: "model" },
-  effort: { values: ["low", "medium", "high"], body: "options.reasoning.effort" },
+  apiKey: { apply: (req, key) => (req.headers["X-Api-Key"] = key) },
+  models: { values: ["qwen-3.8", "kimi-k3"], apply: (req, model) => req.url.searchParams.set("model", model) },
+  effort: { values: ["low", "medium", "high"], apply: (req, effort) => (req.body.reasoning = { effort }) },
 }
 ```
 
-Custom `HttpConnector` subclasses can change the defaults by setting `this.settingTargets`. Connectors also receive the values in `ctx.settings`, and the targets from the options in `ctx.targets`. Note the API key is stored in plain text in the browser storage.
+Custom `HttpConnector` subclasses can change the defaults by setting `this.applySettings`. Connectors also receive the values in `ctx.settings`, and the callbacks from the options in `ctx.apply`. Note the API key is stored in plain text in the browser storage.
 
 ### History
 
@@ -127,18 +140,41 @@ new Chat("chat", { url: "/agent", history: new SyncedHistory() });
 
 `HistoryStore` methods: `list()` (summaries `{ id, title, updatedAt }`, most recent first), `get(id)`, `save(conversation)` and `delete(id)`.
 
+The search button in the sidebar is shown when the store has an optional `search(query)` method, returning one hit per matching message, `{ conversationId, title, messageId, snippet }`. Opening a hit opens the conversation with the query highlighted in that message. `IndexedDBHistory` searches the text of all its conversations, a custom store can call its API, or reuse the default matching with `searchConversations(conversations, query)`:
+
+```ts
+const history: HistoryStore = {
+  // list, get, save, delete...
+  async search(query) {
+    const res = await fetch(`/api/conversations/search?q=${encodeURIComponent(query)}`);
+    return res.json();
+  },
+};
+```
+
 ### Files
 
-Attached files are sent as content parts of the user message: `image_url` (images) or `file` parts for OpenAI, `binary` parts for AG-UI.
+Attached files are sent as content parts of the user message: `image_url` (images) or `file` parts for OpenAI, `image` / `audio` / `video` / `document` parts for AG-UI.
 
 ### Connectors
 
 A connector streams the assistant response for the conversation, as normalized events. Two are built in, both take `{ url, headers?, body? }`:
 
-- **`AgUiConnector`** (default): POSTs a `RunAgentInput` (`threadId`, `runId`, `messages`, ...) and handles `TEXT_MESSAGE_*`, `REASONING_*` / `THINKING_*`, `TOOL_CALL_*` and `RUN_ERROR` events
+- **`AgUiConnector`** (default): POSTs a `RunAgentInput` (`threadId`, `runId`, `messages`, ...) and handles `TEXT_MESSAGE_*`, `REASONING_*` / `THINKING_*`, `TOOL_CALL_*`, `STEP_*`, `SUBAGENT_*` (events tagged with `subagentRunId` are nested in their sub-agent), `ACTIVITY_*`, `STATE_*` and `RUN_ERROR` events. The agent state is kept with the answer and sent back in the next request. Pass `onEvent` to receive every raw event, e.g. for `CUSTOM` events or interrupts in `RUN_FINISHED`
 - **`OpenAIConnector`**: POSTs `{ ...body, stream: true, messages }` and reads `choices[0].delta` (`content`, `reasoning_content` / `reasoning`, `tool_calls`)
 
 Tool calls and their results are sent back in the history on the next turn. Tool calls without a result are left out, since backends reject unanswered calls.
+
+### Tool UIs (MCP Apps and MCP-UI)
+
+Tool results with an interactive UI are shown in a sandboxed iframe under the tool call. With AG-UI the agent sends an `ACTIVITY_SNAPSHOT` of type `mcp-apps` after the tool result, with the raw MCP result: `{ result, toolInput, serverId, tool: { name, _meta } }`, or `{ result, toolInput, serverHash, resourceUri }` from the [AG-UI MCP Apps middleware](https://github.com/ag-ui-protocol/ag-ui/tree/main/middlewares/mcp-apps-middleware). The chat decides what to show, results without UI are hidden:
+
+- **MCP Apps**: a tool with `_meta.ui.resourceUri`. The `text/html;profile=mcp-app` resource runs with a Content Security Policy built from its `_meta.ui.csp`, and talks to the chat over the MCP Apps JSON-RPC protocol: tool input and result, `tools/call` and `resources/read` on its server, `ui/message`, `ui/open-link`, `ui/update-model-context` (sent as AG-UI `context` with the next messages), `ui/request-display-mode` (inline or full screen) and size changes
+- **MCP-UI**: `ui://` resources embedded in the tool result, as HTML (`text/html`) or an external page (`text/uri-list`), with `tool`, `prompt`, `intent`, `link` and size change actions. Remote DOM resources are not supported
+
+The widget reads its resource and calls tools through `connector.mcpRequest()`. `AgUiConnector` sends it to the agent endpoint in `forwardedProps.__proxiedMCPRequest` (`{ serverHash, serverId, method, params }` with `resources/read`, `tools/call` or `tools/list`), the agent runs it on the MCP server and returns the MCP result as the `RUN_FINISHED` result. Widgets can only call tools visible to apps (`_meta.ui.visibility`), checked with `tools/list`. See [`light_chat.mcp_apps`](../python/README.md#tool-uis-of-mcp-servers) in the Python package for a Pydantic AI implementation, MCP servers usually can not be reached from the browser directly (CORS, credentials).
+
+HTML from tools runs in an opaque origin (`sandbox="allow-scripts allow-forms"`), so it can not reach the page, its cookies or storage. External MCP-UI pages keep their own origin.
 
 ### Custom connector
 
@@ -170,7 +206,7 @@ const connector: Connector = {
 };
 ```
 
-Events: `text`, `reasoning`, `tool-start` (`id`, `name`), `tool-args` (`id`, `delta`), `tool-result` (`id`, `result`) and `error` (`message`). The `sse` parser is exported too.
+Events: `text`, `reasoning`, `tool-start` (`id`, `name`), `tool-args` (`id`, `delta`), `tool-result` (`id`, `result`), `step-start` / `step-end` (`name`), `subagent-start` (`id`, `name`, `description`), `subagent-end` (`id`, `result`, `error`), `activity` (`id`, `activityType`, `content`), `state` (`state`) and `error` (`message`). Add `subagent: id` to an event to nest it in that sub-agent. The `sse` parser is exported too.
 
 ## Theming
 

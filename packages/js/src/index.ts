@@ -9,8 +9,48 @@ import {
   type Message,
 } from "light-chat-solid";
 
-export type * from "light-chat-solid";
-export { AgUiConnector, HttpConnector, IndexedDBHistory, OpenAIConnector, sse, toTurns } from "light-chat-solid";
+// Only the data types, the Solid component types would pull in all of Solid's JSX types
+export type {
+  ActivityPart,
+  AgUiConnectorOptions,
+  AgUiEvent,
+  ApplySetting,
+  ChatEvent,
+  ChatOptions,
+  ChatRequest,
+  ChatSettings,
+  Connector,
+  ConnectorContext,
+  Conversation,
+  ConversationSummary,
+  FilePart,
+  HistoryStore,
+  HttpConnectorOptions,
+  McpRequest,
+  Message,
+  Part,
+  Rating,
+  ReasoningPart,
+  RequestContext,
+  SearchHit,
+  Role,
+  SettingAppliers,
+  StepPart,
+  SubagentPart,
+  TextPart,
+  Timing,
+  ToolPart,
+  Turn,
+} from "light-chat-solid";
+export {
+  AgUiConnector,
+  HttpConnector,
+  IndexedDBHistory,
+  OpenAIConnector,
+  searchConversations,
+  sse,
+  toTurns,
+} from "light-chat-solid";
 
 /** Framework agnostic chat UI, wraps the Solid component */
 export class Chat {

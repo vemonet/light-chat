@@ -17,5 +17,5 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "include": ["packages/*/src", "packages/*/tests", "packages/*/vite.config.ts", "demo", "vite.config.ts"]
+  "include": ["packages/*/src", "packages/*/tests", "packages/*/vite.config.ts", "demo", "tests", "vite.config.ts"]
 }

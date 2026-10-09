@@ -12,6 +12,7 @@
   --lc-accent: light-dark(#262626, #e5e5e5);
   --lc-link: light-dark(#1d5fc9, #7cacf8);
   --lc-error: light-dark(#b42318, #f97066);
+  --lc-highlight: light-dark(#fde68a, #854d0e);
   --lc-code-bg: light-dark(#f5f5f5, #1c1c1c);
   --lc-sidebar-bg: light-dark(#f7f7f7, #0a0a0a);
   --lc-sidebar-border: light-dark(#ededed, #1c1c1c);
@@ -77,20 +78,35 @@
   overflow: hidden;
 }
 
-/* Collapsed sidebar: expand and new chat buttons floating top left */
+/* Collapsed sidebar: expand button with the new chat button under it, floating top left */
 .lc-sidebar-float {
   position: absolute;
-  top: 6px;
-  left: 10px;
+  top: 10px;
+  left: 8px;
   z-index: 5;
   display: flex;
-  gap: 2px;
+  flex-direction: column;
+  gap: 4px;
 }
 
-/* When the chat column reaches the floating buttons, reserve a strip above it so content never scrolls under */
+/* When the chat column reaches the floating buttons, reserve a gutter on its left so content never goes under */
 @container (max-width: 960px) {
   .lc-sidebar-float ~ .lc-main {
+    padding-left: 40px;
+  }
+}
+
+/* Very narrow: buttons side by side in a strip above the chat, a left gutter would take too much width */
+@container (max-width: 520px) {
+  .lc-sidebar-float {
+    top: 6px;
+    flex-direction: row;
+    gap: 2px;
+  }
+
+  .lc-sidebar-float ~ .lc-main {
     padding-top: 42px;
+    padding-left: 0;
   }
 
   .lc-sidebar-float ~ .lc-main .lc-thread {
@@ -122,8 +138,128 @@
   padding: 0;
 }
 
-.lc-sidebar > .lc-square {
+/* Top row: collapse button and search */
+.lc-sidebar-top {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   margin-bottom: 6px;
+}
+
+/* Search button, expanded into a search box when on */
+.lc-search {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+}
+
+.lc-search.lc-on {
+  flex: 1;
+  border-color: var(--lc-border);
+  background: var(--lc-input-bg);
+}
+
+.lc-root .lc-search.lc-on .lc-square {
+  width: 30px;
+  height: 30px;
+  color: var(--lc-fg);
+}
+
+.lc-search input {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 4px 0 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  outline: 0;
+}
+
+/* Native clear button replaced by ours */
+.lc-search input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.lc-search:focus-within {
+  border-color: var(--lc-border-strong);
+}
+
+.lc-root .lc-search-clear {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  margin-right: 3px;
+  border-radius: 6px;
+  color: var(--lc-muted);
+}
+
+.lc-root .lc-search-clear:hover {
+  background: var(--lc-hover);
+  color: var(--lc-fg);
+}
+
+.lc-search-clear svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* 16px avoids iOS zoom on focus */
+@media (pointer: coarse) {
+  .lc-search input {
+    font-size: 16px;
+  }
+}
+
+/* Search hit: conversation title over the matching text */
+.lc-root .lc-hit {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 1px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.lc-hit:hover,
+.lc-hit.lc-current {
+  background: var(--lc-hover);
+}
+
+.lc-hit-title {
+  overflow: hidden;
+  color: var(--lc-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lc-hit-snippet {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.lc-hit-snippet mark {
+  border-radius: 2px;
+  background-color: var(--lc-highlight);
+  color: inherit;
+}
+
+/* Search term in the opened message (CSS Highlight API), separate rule since unsupported selectors drop the rule */
+::highlight(lc-search) {
+  background-color: var(--lc-highlight);
 }
 
 /* Plus in a round outline, for new chat */
@@ -407,6 +543,15 @@
   padding: 0 6px;
 }
 
+/* Elapsed time under the streaming message, same height as the actions row it is replaced by */
+.lc-msg-elapsed {
+  font-size: 12px;
+  line-height: 24px;
+  color: var(--lc-muted);
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Loading dots */
 .lc-dots {
   display: flex;
@@ -443,13 +588,15 @@
   }
 }
 
-/* Collapsible lines: tool calls and reasoning, dimmed text that brightens on hover */
+/* Collapsible lines: tool calls, reasoning, sub-agents and activities, dimmed text that brightens on hover.
+   Steps are plain rows with the same layout */
 .lc-collapsible {
   font-size: 14px;
   color: var(--lc-muted);
 }
 
-.lc-collapsible summary {
+.lc-collapsible summary,
+.lc-row {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -462,12 +609,16 @@
   transition: color 0.15s;
 }
 
+.lc-row {
+  cursor: default;
+}
+
 .lc-collapsible summary::-webkit-details-marker {
   display: none;
 }
 
-.lc-collapsible summary:hover,
-.lc-collapsible[open] summary {
+.lc-collapsible > summary:hover,
+.lc-collapsible[open] > summary {
   color: var(--lc-fg);
 }
 
@@ -495,6 +646,14 @@
   font-size: 12.5px;
 }
 
+/* Step duration, dimmer than the label */
+.lc-elapsed {
+  font-size: 12.5px;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 /* Chevron points right when closed, down when open */
 .lc-chevron {
   display: grid;
@@ -507,37 +666,18 @@
   height: 14px;
 }
 
-.lc-collapsible[open] .lc-chevron {
+.lc-collapsible[open] > summary .lc-chevron {
   transform: none;
 }
 
-/* Running state: spinner icon and shimmering label, on the row itself only (not nested steps) */
-.lc-active > summary .lc-collapsible-icon svg {
-  display: none;
-}
-
-.lc-active > summary .lc-collapsible-icon::before {
-  content: "";
-  width: 14px;
-  height: 14px;
-  border: 2px solid currentColor;
-  border-right-color: transparent;
-  border-radius: 50%;
-  animation: lc-spin 0.8s linear infinite;
-}
-
-.lc-active > summary .lc-collapsible-label {
+/* Running state: shimmering label, on the row itself only (not nested steps) */
+.lc-active > summary .lc-collapsible-label,
+.lc-active > .lc-row .lc-collapsible-label {
   background: linear-gradient(90deg, var(--lc-muted) 40%, var(--lc-fg) 50%, var(--lc-muted) 60%) 0 0 / 300% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
   animation: lc-shimmer 2s linear infinite;
-}
-
-@keyframes lc-spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 @keyframes lc-shimmer {
@@ -586,6 +726,20 @@
   padding-bottom: 0;
 }
 
+/* Step rows dimmer than the group line, brighten on hover or when expanded */
+.lc-steps > .lc-collapsible > summary,
+.lc-steps > .lc-collapsible > .lc-row {
+  opacity: 0.75;
+  transition:
+    color 0.15s,
+    opacity 0.15s;
+}
+
+.lc-steps > .lc-collapsible > summary:hover,
+.lc-steps > .lc-collapsible[open] > summary {
+  opacity: 1;
+}
+
 .lc-steps .lc-collapsible-body {
   margin: 4px 0 4px 24px;
   padding: 0;
@@ -616,6 +770,12 @@
 .lc-reasoning {
   color: var(--lc-muted);
   white-space: pre-wrap;
+}
+
+/* Sub-agent content, nested like a message */
+.lc-subagent-desc {
+  color: var(--lc-muted);
+  font-style: italic;
 }
 
 /* Markdown */
@@ -828,12 +988,24 @@
   color: var(--lc-muted);
 }
 
-/* Toolbar under the input box: files and settings */
+/* Toolbar under the input box: files on the left, settings on the right */
 .lc-toolbar {
   display: flex;
   align-items: center;
   gap: 0;
-  margin: 4px 0 -4px 8px;
+  margin: 4px 8px -4px;
+}
+
+.lc-toolbar-settings {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+}
+
+/* Settings popovers align to the right edge of their button, to stay inside the chat */
+.lc-toolbar-settings .lc-popover {
+  right: 0;
+  left: auto;
 }
 
 .lc-root .lc-icon-btn {
@@ -974,8 +1146,42 @@
   }
 }
 
-/* Settings popover, opens above the gear */
-.lc-settings {
+/* Model label button in the toolbar */
+.lc-root .lc-chip-btn {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 26px;
+  padding: 0 6px 0 8px;
+  border-radius: 7px;
+  color: var(--lc-muted);
+  font-size: 13px;
+  opacity: 0.8;
+  transition:
+    opacity 0.15s,
+    background 0.15s;
+}
+
+.lc-chip-btn span {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lc-root .lc-chip-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+.lc-root .lc-chip-btn:hover,
+.lc-root .lc-chip-btn.lc-on {
+  opacity: 1;
+  background: var(--lc-hover);
+}
+
+/* Setting popover, opens above its toolbar button */
+.lc-setting {
   position: relative;
 }
 
@@ -984,16 +1190,46 @@
   bottom: calc(100% + 8px);
   left: 0;
   z-index: 10;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  width: 260px;
+  width: 240px;
+  max-width: calc(100vw - 32px);
   padding: 14px;
   border: 1px solid var(--lc-border);
   border-radius: 14px;
   background: var(--lc-input-bg);
   box-shadow: 0 8px 28px light-dark(rgb(0 0 0 / 0.12), rgb(0 0 0 / 0.4));
   font-size: 14px;
+}
+
+/* Models menu */
+.lc-popover:has(.lc-menu) {
+  width: auto;
+  min-width: 180px;
+  padding: 4px;
+}
+
+.lc-menu {
+  display: flex;
+  flex-direction: column;
+}
+
+.lc-root .lc-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.lc-root .lc-menu-item:hover {
+  background: var(--lc-hover);
+}
+
+.lc-root .lc-menu-item svg {
+  width: 14px;
+  height: 14px;
 }
 
 .lc-field {
@@ -1014,11 +1250,21 @@
   color: var(--lc-fg);
 }
 
-.lc-field select,
-.lc-field input[type="password"] {
+/* API key input with the show/hide button inside on the right */
+.lc-secret {
+  position: relative;
+}
+
+.lc-secret .lc-icon-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+}
+
+.lc-secret input {
   width: 100%;
   height: 34px;
-  padding: 0 10px;
+  padding: 0 34px 0 10px;
   border: 1px solid var(--lc-border);
   border-radius: 8px;
   background: var(--lc-bg);
@@ -1029,8 +1275,7 @@
   outline: 0;
 }
 
-.lc-field select:focus,
-.lc-field input[type="password"]:focus {
+.lc-secret input:focus {
   border-color: var(--lc-border-strong);
 }
 
@@ -1049,8 +1294,7 @@
 }
 
 @media (min-width: 601px) {
-  .lc-field select,
-  .lc-field input[type="password"] {
+  .lc-secret input {
     font-size: 14px;
   }
 }
@@ -1125,4 +1369,61 @@
 
 .lc-root .hljs-strong {
   font-weight: 600;
+}
+
+/* Tool UI (MCP Apps, MCP-UI) in a sandboxed iframe, full screen on request */
+.lc-widget {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.lc-widget-border {
+  border: 1px solid var(--lc-border);
+}
+
+.lc-widget iframe {
+  display: block;
+  width: 100%;
+  border: 0;
+}
+
+.lc-widget-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  border: 0;
+  border-radius: 0;
+  background: var(--lc-bg);
+}
+
+.lc-widget-fullscreen iframe {
+  flex: 1;
+}
+
+/* Host bar above a full screen widget, so its controls never cover the app */
+.lc-widget-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--lc-border);
+}
+
+.lc-widget-close {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--lc-border);
+  border-radius: 8px;
+  background: var(--lc-bg);
+  color: var(--lc-fg);
+  cursor: pointer;
+}
+
+.lc-widget-loading {
+  color: var(--lc-muted);
+  font-size: 14px;
 }

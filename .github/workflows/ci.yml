@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One run per branch or PR, a new push to a PR cancels its previous run (deploys on main are never cut)
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: voidzero-dev/setup-vp@v1.21.1
+        with:
+          node-version: "24"
+          cache: true
+
+      - run: vp install
+
+      # Headless Chromium for the browser and e2e test projects
+      - run: vp exec playwright install --with-deps --only-shell chromium
+
+      - name: Format, lint and type check
+        run: vp check
+
+      - name: Unit, browser and end user tests
+        run: vp test
+
+      - name: Build packages
+        run: vp run -r build
+
+      - name: Build demo
+        run: vp build
+
+      - uses: actions/upload-pages-artifact@v5.0.0
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        with:
+          path: dist
+
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5.0.1
+
+  # Demo server on Hugging Face Spaces (vemonet/uniprot-agent), with the `HF_TOKEN` secret (write token)
+  space:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'vemonet/light-chat'
+    runs-on: ubuntu-latest
+    env:
+      HF: pipx run --spec huggingface_hub hf
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      # Skipped until the secret is set, secrets can not be read in a job condition
+      - if: env.HF_TOKEN != ''
+        run: ./server/space/deploy.sh

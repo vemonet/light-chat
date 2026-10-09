@@ -1,26 +1,8 @@
-import { createMemo, For, Index, Show } from "solid-js";
+import { createMemo, For, Show } from "solid-js";
 import type { ChatController } from "../store.ts";
-import type { FilePart, Message, ReasoningPart, TextPart, ToolPart } from "../types.ts";
+import type { FilePart, Message } from "../types.ts";
 import { CheckIcon, CopyIcon, ThumbDownIcon, ThumbUpIcon } from "./icons.tsx";
-import { copy, FileChip, Markdown, Steps } from "./Parts.tsx";
-
-/** Assistant content block: markdown text, or consecutive thinking / tool call steps */
-type Block = { kind: "text"; part: TextPart } | { kind: "steps"; steps: (ReasoningPart | ToolPart)[] };
-
-/** Group parts in blocks. Whitespace-only text is skipped, so it neither adds a gap nor splits a group */
-function toBlocks(message: Message): Block[] {
-  const out: Block[] = [];
-  for (const p of message.parts) {
-    if (p.type === "text") {
-      if (p.text.trim()) out.push({ kind: "text", part: p });
-    } else if (p.type === "reasoning" || p.type === "tool") {
-      const last = out[out.length - 1];
-      if (last?.kind === "steps") last.steps.push(p);
-      else out.push({ kind: "steps", steps: [p] });
-    }
-  }
-  return out;
-}
+import { Blocks, copy, Elapsed, FileChip, formatDuration, toBlocks } from "./Parts.tsx";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const day = (d: Date) => `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}`;
@@ -29,8 +11,9 @@ const time = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 /** 24h time for today's messages, `2026.12.28 · 23:12` otherwise */
 const formatDate = (d: Date) => (d.toDateString() === new Date().toDateString() ? time(d) : `${day(d)} · ${time(d)}`);
 
-/** Full date shown on hover: `2026.12.28 · 23:12:30` */
-const formatFull = (d: Date) => `${day(d)} · ${time(d)}:${pad(d.getSeconds())}`;
+/** Full date shown on hover, with the generation time when known: `2026.12.28 · 23:12:30 in 1m12s` */
+const formatFull = (d: Date, endedAt?: number) =>
+  `${day(d)} · ${time(d)}:${pad(d.getSeconds())}` + (endedAt ? ` in ${formatDuration(endedAt - d.getTime())}` : "");
 
 export function MessageView(props: { message: Message; streaming: boolean; chat: ChatController }) {
   const m = () => props.message;
@@ -40,10 +23,10 @@ export function MessageView(props: { message: Message; streaming: boolean; chat:
       .join("\n\n")
       .trim();
   const files = () => m().parts.filter((p): p is FilePart => p.type === "file");
-  const blocks = createMemo(() => toBlocks(m()));
+  const blocks = createMemo(() => toBlocks(m().parts));
 
   return (
-    <div class={`lc-msg lc-${m().role}`}>
+    <div class={`lc-msg lc-${m().role}`} data-id={m().id}>
       <Show
         when={m().role === "assistant"}
         fallback={
@@ -60,20 +43,7 @@ export function MessageView(props: { message: Message; streaming: boolean; chat:
         }
       >
         <div class="lc-content">
-          {/* Index keeps components mounted by position, blocks are recomputed but only appended */}
-          <Index each={blocks()}>
-            {(block, i) => (
-              <Show
-                when={block().kind === "steps"}
-                fallback={<Markdown text={(block() as Extract<Block, { kind: "text" }>).part.text} />}
-              >
-                <Steps
-                  steps={(block() as Extract<Block, { kind: "steps" }>).steps}
-                  active={props.streaming && i === blocks().length - 1}
-                />
-              </Show>
-            )}
-          </Index>
+          <Blocks blocks={blocks()} active={props.streaming} />
           <Show when={props.streaming && !blocks().length}>
             <div class="lc-dots" aria-label="Loading">
               <span />
@@ -85,6 +55,11 @@ export function MessageView(props: { message: Message; streaming: boolean; chat:
             <div class="lc-error">{m().error}</div>
           </Show>
         </div>
+      </Show>
+
+      {/* Time elapsed while the response streams, hidden while a steps line shows its own timer */}
+      <Show when={props.streaming && blocks()[blocks().length - 1]?.kind !== "steps"}>
+        <Elapsed class="lc-msg-elapsed" start={m().createdAt.getTime()} />
       </Show>
 
       {/* Actions revealed on hover: copy, datetime, rating */}
@@ -124,7 +99,7 @@ export function MessageView(props: { message: Message; streaming: boolean; chat:
               <ThumbDownIcon />
             </button>
           </Show>
-          <time class="lc-time" dateTime={m().createdAt.toISOString()} title={formatFull(m().createdAt)}>
+          <time class="lc-time" dateTime={m().createdAt.toISOString()} title={formatFull(m().createdAt, m().endedAt)}>
             {formatDate(m().createdAt)}
           </time>
         </div>

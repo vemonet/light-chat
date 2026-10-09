@@ -1,26 +1,42 @@
-import type { ChatEvent, ChatSettings, FilePart, Message, SettingTargets, ToolPart } from "../types.ts";
+import type {
+  ChatEvent,
+  ChatRequest,
+  ChatSettings,
+  FilePart,
+  McpRequest,
+  Message,
+  SettingAppliers,
+  ToolPart,
+} from "../types.ts";
 
-export interface ConnectorContext {
+/** What a request needs from the chat */
+export interface RequestContext {
+  /** Values chosen by the user in the toolbar */
+  settings: ChatSettings;
+  /** Setting callbacks defined in the chat options, they replace the connector defaults */
+  apply?: SettingAppliers;
+  signal?: AbortSignal;
+  threadId: string;
+}
+
+export interface ConnectorContext extends RequestContext {
   /** Conversation history, including the new user message */
   messages: Message[];
-  /** Values chosen by the user in the settings menu */
-  settings: ChatSettings;
-  /** Targets defined in the chat options, they replace the connector defaults */
-  targets?: SettingTargets;
   signal: AbortSignal;
-  threadId: string;
 }
 
 /** Streams the assistant response for a conversation, as normalized chat events */
 export interface Connector {
   stream(ctx: ConnectorContext): AsyncIterable<ChatEvent>;
+  /** Send an MCP request of a widget (MCP Apps / MCP-UI) to its server, returns the MCP result */
+  mcpRequest?(request: McpRequest, ctx: RequestContext): Promise<unknown>;
 }
 
 export interface HttpConnectorOptions {
   url: string;
   /** Extra request headers, e.g. Authorization */
   headers?: Record<string, string> | (() => Record<string, string> | Promise<Record<string, string>>);
-  /** Extra fields merged into the request body */
+  /** Extra fields merged into the request body, copied for each request */
   body?: Record<string, unknown>;
 }
 
@@ -90,31 +106,19 @@ export async function* sse(res: Response): AsyncGenerator<string> {
   if (data) yield data;
 }
 
-/** Set a value at a dotted path in an object, creating nested objects as needed */
-function setPath(obj: Record<string, unknown>, path: string, value: unknown) {
-  const keys = path.split(".");
-  const last = keys.pop()!;
-  let cur = obj;
-  for (const k of keys) {
-    if (typeof cur[k] !== "object" || cur[k] === null) cur[k] = {};
-    cur = cur[k] as Record<string, unknown>;
-  }
-  cur[last] = value;
-}
-
 /**
  * Base for connectors that POST JSON and read a Server-Sent Events response.
  * Subclasses define the request `body()` and how to `parse()` the stream.
- * Settings values are added to the request according to their targets.
+ * Settings values are added to the request by their `apply` callback.
  */
 export abstract class HttpConnector implements Connector {
   protected options: HttpConnectorOptions;
 
-  /** Default target of each setting, replaced by targets defined in the chat options */
-  protected settingTargets: SettingTargets = {
-    apiKey: { header: "Authorization", prefix: "Bearer " },
-    model: { body: "model" },
-    effort: { body: "reasoning_effort" },
+  /** Default callback of each setting, replaced by callbacks defined in the chat options */
+  protected applySettings: SettingAppliers = {
+    apiKey: (req, key) => (req.headers.Authorization = `Bearer ${key}`),
+    model: (req, model) => (req.body.model = model),
+    effort: (req, effort) => (req.body.reasoning_effort = effort),
   };
 
   constructor(options: HttpConnectorOptions) {
@@ -125,10 +129,10 @@ export abstract class HttpConnector implements Connector {
   protected abstract body(ctx: ConnectorContext): Record<string, unknown>;
 
   /** Convert the SSE `data` payloads to chat events */
-  protected abstract parse(data: AsyncIterable<string>): AsyncIterable<ChatEvent>;
+  protected abstract parse(data: AsyncIterable<string>, ctx: ConnectorContext): AsyncIterable<ChatEvent>;
 
   /** Request headers */
-  protected async headers(_ctx: ConnectorContext): Promise<Record<string, string>> {
+  protected async headers(_ctx: RequestContext): Promise<Record<string, string>> {
     const { headers } = this.options;
     return {
       "Content-Type": "application/json",
@@ -138,31 +142,33 @@ export abstract class HttpConnector implements Connector {
   }
 
   async *stream(ctx: ConnectorContext): AsyncGenerator<ChatEvent> {
-    const headers = await this.headers(ctx);
-    const body = this.body(ctx);
-    const query = new URLSearchParams();
-    // Put each setting value in the header, query parameter and/or body key of its target
-    for (const [key, value] of Object.entries(ctx.settings) as [keyof ChatSettings, string | undefined][]) {
-      const target = ctx.targets?.[key] ?? this.settingTargets[key];
-      if (!value || !target) continue;
-      const v = (target.prefix ?? "") + value;
-      if (target.header) headers[target.header] = v;
-      if (target.query) query.set(target.query, v);
-      if (target.body) setPath(body, target.body, v);
-    }
-    let url = this.options.url;
-    if (query.size) url += (url.includes("?") ? "&" : "?") + query.toString();
+    yield* this.parse(this.post(this.body(ctx), ctx), ctx);
+  }
 
-    const res = await fetch(url, {
+  /** POST a body to the endpoint, with the headers and settings, yields the SSE `data` payloads of the response */
+  protected async *post(body: Record<string, unknown>, ctx: RequestContext): AsyncGenerator<string> {
+    // Relative URLs resolve against the page
+    const req: ChatRequest = {
+      url: new URL(this.options.url, globalThis.location?.href),
+      headers: await this.headers(ctx),
+      body,
+    };
+    // Each setting value is added by its callback from the chat options, or the connector default
+    for (const [key, value] of Object.entries(ctx.settings) as [keyof ChatSettings, string | undefined][]) {
+      const apply = ctx.apply?.[key] ?? this.applySettings[key];
+      if (value && apply) apply(req, value);
+    }
+
+    const res = await fetch(String(req.url), {
       method: "POST",
-      headers,
-      body: JSON.stringify(body),
+      headers: req.headers,
+      body: JSON.stringify(req.body),
       signal: ctx.signal,
     });
     if (!res.ok || !res.body) {
       const detail = (await res.text().catch(() => "")).slice(0, 300);
       throw new Error(`${res.status} ${res.statusText} ${detail}`.trim());
     }
-    yield* this.parse(sse(res));
+    yield* sse(res);
   }
 }

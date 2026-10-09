@@ -2,7 +2,7 @@ import { afterEach, expect, test, vi } from "vite-plus/test";
 import { AgUiConnector } from "../src/connectors/agui.ts";
 import { sse, toTurns, type Connector, type ConnectorContext } from "../src/connectors/base.ts";
 import { OpenAIConnector } from "../src/connectors/openai.ts";
-import type { ChatEvent, ChatSettings, Message } from "../src/types.ts";
+import type { ChatEvent, ChatRequest, ChatSettings, Message } from "../src/types.ts";
 
 /** Response streaming the given SSE payload split in small chunks, to exercise buffering */
 const sseResponse = (payload: string) => {
@@ -156,12 +156,102 @@ test("agui connector maps text, tool calls and results", async () => {
         role: "user",
         content: [
           { type: "text", text: "look" },
-          { type: "binary", mimeType: "image/png", filename: "a.png", data: "AAA" },
-          { type: "binary", mimeType: "application/pdf", filename: "b.pdf", data: "BBB" },
+          {
+            type: "image",
+            source: { type: "data", value: "AAA", mimeType: "image/png" },
+            metadata: { filename: "a.png" },
+          },
+          {
+            type: "document",
+            source: { type: "data", value: "BBB", mimeType: "application/pdf" },
+            metadata: { filename: "b.pdf" },
+          },
         ],
       },
     ],
   });
+});
+
+test("agui connector maps steps, sub-agents, activities and state", async () => {
+  const onEvent = vi.fn();
+  stubFetch([
+    { type: "STEP_STARTED", stepName: "plan" },
+    { type: "ACTIVITY_SNAPSHOT", messageId: "a1", activityType: "PLAN", content: { steps: ["search"] } },
+    {
+      type: "ACTIVITY_DELTA",
+      messageId: "a1",
+      activityType: "PLAN",
+      patch: [{ op: "add", path: "/steps/-", value: "write" }],
+    },
+    // Ignored, the activity exists and replace is false
+    { type: "ACTIVITY_SNAPSHOT", messageId: "a1", activityType: "PLAN", content: {}, replace: false },
+    { type: "STEP_FINISHED", stepName: "plan" },
+    { type: "SUBAGENT_STARTED", subagentRunId: "s1", name: "researcher", description: "Finds sources" },
+    { type: "TEXT_MESSAGE_CONTENT", messageId: "m1", delta: "Found it", subagentRunId: "s1" },
+    { type: "SUBAGENT_STARTED", subagentRunId: "s2", name: "reader", parentSubagentRunId: "s1" },
+    { type: "SUBAGENT_ERROR", subagentRunId: "s2", message: "timeout" },
+    { type: "SUBAGENT_FINISHED", subagentRunId: "s1", result: { sources: 2 } },
+    { type: "STATE_DELTA", delta: [{ op: "replace", path: "/count", value: 2 }] },
+    { type: "STATE_SNAPSHOT", snapshot: { other: true }, subagentRunId: "s1" },
+    { type: "CUSTOM", name: "ping", value: 1 },
+  ]);
+  const previous: Message = { ...user("before"), id: "a0", role: "assistant", state: { count: 1, keep: "x" } };
+  const connector = new AgUiConnector({ url: "http://test", onEvent });
+  expect(await collect(connector, ctx([user("hi"), previous, user("again")]))).toEqual([
+    { type: "step-start", name: "plan" },
+    { type: "activity", id: "a1", activityType: "PLAN", content: { steps: ["search"] } },
+    { type: "activity", id: "a1", activityType: "PLAN", content: { steps: ["search", "write"] } },
+    { type: "step-end", name: "plan" },
+    { type: "subagent-start", id: "s1", name: "researcher", description: "Finds sources" },
+    { type: "text", delta: "Found it", subagent: "s1" },
+    { type: "subagent-start", id: "s2", name: "reader", subagent: "s1" },
+    { type: "subagent-end", id: "s2", error: "timeout" },
+    { type: "subagent-end", id: "s1", result: { sources: 2 } },
+    { type: "state", state: { count: 2, keep: "x" } },
+  ]);
+  expect(onEvent).toHaveBeenCalledTimes(13);
+  expect(onEvent).toHaveBeenLastCalledWith({ type: "CUSTOM", name: "ping", value: 1 });
+});
+
+test("agui connector sends back the state of the last response", async () => {
+  const fetch = stubFetch([]);
+  const answer = (state: unknown): Message => ({ ...user("ok"), role: "assistant", state });
+  await collect(
+    new AgUiConnector({ url: "http://test" }),
+    ctx([answer({ n: 1 }), answer({ n: 2 }), answer(undefined)]),
+  );
+  expect(requestBody(fetch).state).toEqual({ n: 2 });
+});
+
+test("agui connector proxies MCP requests of widgets and sends their context", async () => {
+  const result = { contents: [{ uri: "ui://a", text: "<p>hi</p>" }] };
+  const fetch = stubFetch([{ type: "RUN_STARTED" }, { type: "RUN_FINISHED", result }]);
+  const connector = new AgUiConnector({ url: "http://test", body: { forwardedProps: { team: "a" } } });
+  const request = { serverHash: "h", method: "resources/read", params: { uri: "ui://a" } };
+  await expect(connector.mcpRequest(request, { settings: { model: "m1" }, threadId: "t" })).resolves.toEqual(result);
+  expect(requestBody(fetch)).toMatchObject({
+    threadId: "t",
+    messages: [],
+    forwardedProps: { team: "a", model: "m1", __proxiedMCPRequest: request },
+  });
+
+  // Errors returned in the result are thrown
+  stubFetch([{ type: "RUN_FINISHED", result: { error: "Unknown MCP server" } }]);
+  await expect(connector.mcpRequest(request, { settings: {}, threadId: "t" })).rejects.toThrow("Unknown MCP server");
+
+  // Context set by a widget is sent with the next run
+  const chatFetch = stubFetch([]);
+  const answer: Message = {
+    ...user("ok"),
+    role: "assistant",
+    parts: [
+      { type: "activity", id: "w1", activityType: "mcp-apps", content: { resourceUri: "ui://a" }, context: { n: 1 } },
+    ],
+  };
+  await collect(connector, ctx([user("hi"), answer, user("again")]));
+  expect(requestBody(chatFetch).context).toEqual([
+    { description: "Current state of the interactive UI ui://a, updated by the user", value: '{"n":1}' },
+  ]);
 });
 
 test("http errors are thrown with status", async () => {
@@ -169,14 +259,17 @@ test("http errors are thrown with status", async () => {
   await expect(collect(new OpenAIConnector({ url: "http://test" }))).rejects.toThrow("401 Unauthorized nope");
 });
 
-test("settings targets defined in options replace the connector defaults", async () => {
+test("settings callbacks defined in options replace the connector defaults", async () => {
   const fetch = stubFetch(["[DONE]"]);
   const c = {
     ...ctx([user("hi")], { apiKey: "k1", model: "m1", effort: "high" }),
-    targets: {
-      apiKey: { header: "X-Api-Key" },
-      model: { query: "model", body: "options.llm.name" },
-      effort: { header: "X-Effort", prefix: "level-" },
+    apply: {
+      apiKey: (req: ChatRequest, key: string) => (req.headers["X-Api-Key"] = key),
+      model: (req: ChatRequest, model: string) => {
+        req.url.searchParams.set("model", model);
+        req.body.options = { llm: { name: model } };
+      },
+      effort: (req: ChatRequest, effort: string) => (req.headers["X-Effort"] = `level-${effort}`),
     },
   };
   await collect(new OpenAIConnector({ url: "http://test/chat?v=1" }), c);
@@ -190,4 +283,12 @@ test("settings targets defined in options replace the connector defaults", async
   expect(body.options).toEqual({ llm: { name: "m1" } });
   expect(body.model).toBeUndefined();
   expect(body.reasoning_effort).toBeUndefined();
+});
+
+test("settings added to nested body objects do not mutate the connector options", async () => {
+  const fetch = stubFetch([]);
+  const options = { url: "http://test", body: { forwardedProps: { team: "a" } } };
+  await collect(new AgUiConnector(options), ctx([user("hi")], { model: "m1" }));
+  expect(requestBody(fetch).forwardedProps).toEqual({ team: "a", model: "m1" });
+  expect(options.body.forwardedProps).toEqual({ team: "a" });
 });

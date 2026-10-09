@@ -1,5 +1,10 @@
 node_modules
 dist
 *.log
-.DS_Store
-.claude/settings.local.json
+.vitest-attachments
+__screenshots__
+.venv/
+__pycache__/
+.ruff_cache
+# JS build copied in the Python package by `vp run build:py`
+packages/python/src/light_chat/static/

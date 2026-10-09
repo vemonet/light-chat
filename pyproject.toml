@@ -1,0 +1,11 @@
+# uv workspace: one lock and one .venv at the root for the Python package and the demo server
+[tool.uv.workspace]
+members = ["packages/python", "server"]
+
+[dependency-groups]
+dev = ["ruff>=0.16.10"]
+
+[tool.ruff]
+line-length = 120
+# Demo server modules, first-party for import sorting
+src = ["server"]

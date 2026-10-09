@@ -1,0 +1,9 @@
+**/node_modules
+**/dist
+**/.venv
+**/__pycache__
+**/.ruff_cache
+**/.env
+.git
+.vitest-attachments
+packages/python/src/light_chat/static
