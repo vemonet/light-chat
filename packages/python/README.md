@@ -70,6 +70,16 @@ The agent only forwards, the chat decides what to render:
 
 Widgets can also add context for the model with `ui/update-model-context`, sent as AG-UI `context` with the next request, e.g. add it to the instructions. See the [demo server](../../server/app.py) for a complete agent.
 
+## Logging
+
+`setup_logging` formats the logs of all libraries like uvicorn (`INFO:     message`), replacing handlers set by others, e.g. the MCP SDK. It hides the log line of each HTTP request, outgoing ones of `httpx` and the uvicorn access log, unless `request_logs=True`:
+
+```python
+from light_chat import setup_logging
+
+setup_logging()  # or setup_logging("DEBUG", request_logs=True)
+```
+
 ## Development
 
 From the repo root, build the JS package, copy it in `src/light_chat/static`, and build the wheel in `packages/python/dist`:

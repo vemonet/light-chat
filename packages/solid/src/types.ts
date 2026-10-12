@@ -133,6 +133,9 @@ export type ApplySetting = (req: ChatRequest, value: string) => void;
 /** Callback of each setting, keyed like `ChatSettings` */
 export type SettingAppliers = Partial<Record<keyof ChatSettings, ApplySetting>>;
 
+/** "auto" follows the OS preference */
+export type Theme = "auto" | "light" | "dark";
+
 export interface ChatOptions {
   /** Backend connector, e.g. `new OpenAIConnector({ url })`. Default: AG-UI connector on `url` */
   connector?: Connector;
@@ -144,7 +147,9 @@ export interface ChatOptions {
   examples?: string[];
   placeholder?: string;
   /** Default "auto" follows the OS preference */
-  theme?: "auto" | "light" | "dark";
+  theme?: Theme;
+  /** Show a button in the sidebar to switch between system, light and dark theme, saved in localStorage. Default: false */
+  themeSwitch?: boolean;
   /** Show the + button to attach files to messages. Default: true */
   attachments?: boolean;
   /**

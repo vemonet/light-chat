@@ -2,11 +2,10 @@
 
 import os
 from contextlib import asynccontextmanager
-from typing import Any
-from urllib.parse import urlparse
+from typing import TypedDict
 
 from fastapi import FastAPI, HTTPException, Request, Response
-from light_chat import chat_router
+from light_chat import chat_router, setup_logging
 from light_chat.mcp_apps import PROXIED_REQUEST, UIToolset, proxied_response
 from mcp.server.mcpserver import MCPServer
 from pydantic_ai import Agent, RunContext
@@ -14,25 +13,41 @@ from pydantic_ai.ui.ag_ui import AGUIAdapter
 
 from uniprot_apps import UNIPROT_API, apps, fetch_entry, get, http_client
 
+# Logs of all libraries in the uvicorn style, without a line per HTTP request
+setup_logging()
+
 # OpenAI-compatible endpoint, read by the OpenAI provider, with its tool calling models (the first is the default)
 os.environ.setdefault("OPENAI_BASE_URL", "https://llm.ai.egi.eu/v1")
 MODELS = os.getenv("MODELS", "qwen3.8-27b,glm-5.3,kimi-k3,gpt-oss-120b").split(",")
 # UniProt MCP server used by the agent: the one of this app, called in-process, unless an URL is set
 MCP_URL = os.getenv("MCP_URL")
-# Remote MCP servers with tools displaying interactive UIs (MCP Apps and MCP-UI)
-UI_MCP_URLS = os.getenv(
-    # "UI_MCP_URLS", "https://remote-mcp-server-authless.idosalomon.workers.dev/mcp,https://mcp.excalidraw.com/mcp"
-    "UI_MCP_URLS",
-    "https://mcp.excalidraw.com/mcp",
-).split(",")
 
 # MCP server with UniProt tools, and tools showing widgets (MCP Apps) from `uniprot_apps.py`
 mcp = MCPServer("uniprot", instructions="Query the UniProt protein knowledgebase", extensions=[apps])
 
 
+class ProteinSummary(TypedDict):
+    accession: str
+    name: str | None
+    genes: list[str]
+    organism: str | None
+    length: int | None
+
+
+class Protein(TypedDict):
+    accession: str
+    name: str | None
+    organism: str | None
+    function: list[str]
+    sequence: str | None
+
+
+# Typed results give the tools an output schema
 @mcp.tool()
-async def search_proteins(query: str, size: int = 5) -> list[dict[str, Any]]:
-    """Search UniProtKB entries, e.g. `insulin AND organism_id:9606`, returns accession, name, genes, organism"""
+async def search_proteins(query: str, size: int = 5) -> list[ProteinSummary]:
+    """Search UniProtKB entries, returns accession, name, genes, organism. Query syntax: `gene_exact:INS`,
+    `protein_name:kinase`, `organism_id:9606` (one species), `taxonomy_name:mammalia` (a clade with its
+    descendants, by name), `reviewed:true`, `cc_disease:*`, combined with AND, OR, NOT"""
     params = {
         "query": query,
         "size": size,
@@ -45,38 +60,38 @@ async def search_proteins(query: str, size: int = 5) -> list[dict[str, Any]]:
         raise ValueError(f"Invalid query: {', '.join(res.json().get('messages', []))}")
     res.raise_for_status()
     return [
-        {
-            "accession": e["primaryAccession"],
-            "name": e.get("proteinDescription", {}).get("recommendedName", {}).get("fullName", {}).get("value"),
-            "genes": [g["geneName"]["value"] for g in e.get("genes", []) if "geneName" in g],
-            "organism": e.get("organism", {}).get("scientificName"),
-            "length": e.get("sequence", {}).get("length"),
-        }
+        ProteinSummary(
+            accession=e["primaryAccession"],
+            name=e.get("proteinDescription", {}).get("recommendedName", {}).get("fullName", {}).get("value"),
+            genes=[g["geneName"]["value"] for g in e.get("genes", []) if "geneName" in g],
+            organism=e.get("organism", {}).get("scientificName"),
+            length=e.get("sequence", {}).get("length"),
+        )
         for e in res.json()["results"]
     ]
 
 
 @mcp.tool()
-async def get_protein(accession: str) -> dict[str, Any]:
+async def get_protein(accession: str) -> Protein:
     """Get a UniProtKB entry by accession (e.g. P01308): name, organism, function and sequence"""
     async with http_client() as client:
         e = await fetch_entry(client, accession)
-    return {
-        "accession": e["primaryAccession"],
-        "name": e.get("proteinDescription", {}).get("recommendedName", {}).get("fullName", {}).get("value"),
-        "organism": e.get("organism", {}).get("scientificName"),
-        "function": [
+    return Protein(
+        accession=e["primaryAccession"],
+        name=e.get("proteinDescription", {}).get("recommendedName", {}).get("fullName", {}).get("value"),
+        organism=e.get("organism", {}).get("scientificName"),
+        function=[
             t["value"] for c in e.get("comments", []) if c["commentType"] == "FUNCTION" for t in c.get("texts", [])
         ],
-        "sequence": e.get("sequence", {}).get("value"),
-    }
+        sequence=e.get("sequence", {}).get("value"),
+    )
 
 
-# Agent using the MCP servers tools over HTTP, the model is set per request.
+# Agent using the tools of the UniProt and Excalidraw MCP servers, the model is set per request.
 # Results of all tools are sent to the chat, which shows the ones with a UI
 ui_toolsets = [
     UIToolset(MCP_URL or mcp, id="uniprot"),
-    *(UIToolset(url, id=urlparse(url).hostname) for url in UI_MCP_URLS if url),
+    UIToolset("https://mcp.excalidraw.com/mcp", id="excalidraw"),
 ]
 # Failed tool calls are sent back to the model a few times, e.g. to fix an invalid UniProt query
 agent = Agent(toolsets=ui_toolsets, deps_type=str, retries={"tools": 3})
@@ -88,8 +103,8 @@ def instructions(ctx: RunContext[str]) -> str:
     e.g. the state of a widget edited by the user"""
     prompt = (
         "You are a helpful assistant answering questions about proteins using the UniProt tools. "
-        "Some tools display interactive UIs to the user, e.g. protein features, 3D structures, search results tables, "
-        "task status or Excalidraw diagrams. Prefer them to show features, structures or long lists of proteins, "
+        "Some tools display interactive UIs to the user, e.g. protein features, 3D structures, search results tables "
+        "or Excalidraw diagrams. Prefer them to show features, structures or long lists of proteins, "
         "and do not repeat in text what they show."
     )
     return f"{prompt}\n\n{ctx.deps}" if ctx.deps else prompt
@@ -133,17 +148,20 @@ app.include_router(
         url="/chat",
         title="UniProt agent",
         settings={"models": MODELS},
+        themeSwitch=True,
         welcome=(
             "## Ask about proteins\nThe agent queries [UniProt](https://www.uniprot.org), "
-            "and shows interactive sequence features, 3D structures and results tables."
+            "and shows interactive sequence features, variants, 3D structures, annotation matrices and results tables."
         ),
         placeholder="Ask a question",
         examples=[
-            "What is the function of human insulin?",
-            "Which proteins are involved in the human circadian clock?",
-            "Show the domains, PTMs and variants of human AKT1",
+            # "What is the function of human insulin?",
+            # "Which proteins are involved in the human circadian clock?",
             "Where is the E17K mutation of AKT1 relative to its active site? Show the structure",
-            "Find human kinases with disease variants",
+            "Explore the pathogenic variants of human TP53: where do they cluster?",
+            "Show the domains, PTMs and variants of human AKT1",
+            "Find the insulin entries of all mammals in UniProt",
+            "Compare the functions of the human DNA damage response genes TP53, MDM2, CDKN1A, ATM, CHEK2 and BRCA1",
             "Look up human insulin, IRS1 and GLUT4 in UniProt, then draw an Excalidraw diagram of the insulin signaling pathway",
             # "Look up human insulin, the insulin receptor, IRS1 and GLUT4 in UniProt, then draw an Excalidraw diagram of the insulin signaling pathway: one box per protein with its accession, gene name and length, and arrows showing how the signal flows to glucose uptake, based on their UniProt function descriptions.",
             # add AKT between IRS1 and GLUT4, look it up in UniProt first

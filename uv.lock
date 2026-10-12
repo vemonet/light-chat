@@ -8,8 +8,8 @@ resolution-markers = [
 
 [manifest]
 members = [
-    "agent-api",
     "light-chat",
+    "uniprot-agent",
 ]
 
 [manifest.dependency-groups]
@@ -25,29 +25,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/e8/f7/9bf788e7d3608725d022a248a58427040f4f930ab87ddb54bd29ee4d9a51/ag_ui_protocol-0.1.22.tar.gz", hash = "sha256:d21f265284a50d9fc87ad7bcbd58f737b4b16eef7b5375f13a6e925117b52046", size = 18110, upload-time = "2026-08-31T18:20:04.334Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/be/6c/af3d577e68c9474c99600e65b2c6283772aae187edca6f0f2f5cbd9f565a/ag_ui_protocol-0.1.22-py3-none-any.whl", hash = "sha256:fca13ee7820f8f53e869c19e09ddd75826c1799b27c2adb6f2e567295433c704", size = 22068, upload-time = "2026-08-31T18:20:03.43Z" },
-]
-
-[[package]]
-name = "agent-api"
-version = "0.1.0"
-source = { virtual = "server" }
-dependencies = [
-    { name = "fastapi" },
-    { name = "httpx2" },
-    { name = "light-chat", extra = ["mcp-apps"] },
-    { name = "mcp" },
-    { name = "pydantic-ai-slim", extra = ["ag-ui", "anthropic", "mcp", "openai"] },
-    { name = "uvicorn", extra = ["standard"] },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "fastapi", specifier = ">=0.142.2" },
-    { name = "httpx2", specifier = ">=2.13.1" },
-    { name = "light-chat", extras = ["mcp-apps"], editable = "packages/python" },
-    { name = "mcp", specifier = ">=2.3.0" },
-    { name = "pydantic-ai-slim", extras = ["ag-ui", "anthropic", "mcp", "openai"], specifier = ">=2.54.0" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
 ]
 
 [[package]]
@@ -1624,6 +1601,29 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/a3/26/b09b8010994eccc3c09092e6b34058f36a460eea2d4c3e8b910c695975a0/typing_inspection-0.4.4.tar.gz", hash = "sha256:547274fa6b0a561ccf549cc9524b999a578e737d015d8709d021f9d0d13bea47", size = 76928, upload-time = "2026-08-12T12:37:25.997Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/67/81/4add07e5172b7ac40d8ed5ff580409a7801a4fe26d529bdd915401dabfbe/typing_inspection-0.4.4-py3-none-any.whl", hash = "sha256:65b8397ba37ccbce054456aaccddfc91e6e3083c92824df348d96ca832f3f147", size = 14750, upload-time = "2026-08-12T12:37:24.648Z" },
+]
+
+[[package]]
+name = "uniprot-agent"
+version = "0.1.0"
+source = { virtual = "server" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "httpx2" },
+    { name = "light-chat", extra = ["mcp-apps"] },
+    { name = "mcp" },
+    { name = "pydantic-ai-slim", extra = ["ag-ui", "anthropic", "mcp", "openai"] },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.142.2" },
+    { name = "httpx2", specifier = ">=2.13.1" },
+    { name = "light-chat", extras = ["mcp-apps"], editable = "packages/python" },
+    { name = "mcp", specifier = ">=2.3.0" },
+    { name = "pydantic-ai-slim", extras = ["ag-ui", "anthropic", "mcp", "openai"], specifier = ">=2.54.0" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
 ]
 
 [[package]]

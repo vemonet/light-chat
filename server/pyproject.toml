@@ -1,15 +1,15 @@
 [project]
-name = "agent-api"
+name = "uniprot-agent"
 version = "0.1.0"
-description = "FastAPI agent demo: UniProt MCP server and AG-UI chat endpoint"
+description = "UniProt MCP server and AG-UI chat endpoint"
 requires-python = ">=3.13"
 dependencies = [
-  "fastapi>=0.142.2",
   "light-chat[mcp-apps]",
-  "httpx2>=2.13.1",
-  "mcp>=2.3.0",
-  "pydantic-ai-slim[ag-ui,anthropic,mcp,openai]>=2.54.0",
-  "uvicorn[standard]>=0.54.0",
+  "fastapi >=0.142.2",
+  "httpx2 >=2.13.1",
+  "mcp >=2.3.0",
+  "pydantic-ai-slim[ag-ui,anthropic,mcp,openai] >=2.54.0",
+  "uvicorn[standard] >=0.54.0",
 ]
 
 [tool.uv.sources]

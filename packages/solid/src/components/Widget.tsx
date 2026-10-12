@@ -1,4 +1,4 @@
-import { createResource, createSignal, Match, onCleanup, Show, Switch, useContext } from "solid-js";
+import { createEffect, createResource, createSignal, on, Match, onCleanup, Show, Switch, useContext } from "solid-js";
 import { unwrap } from "solid-js/store";
 import { ChatContext, type ChatController } from "../store.ts";
 import type { ActivityPart, McpRequest } from "../types.ts";
@@ -126,8 +126,8 @@ const allowOf = (permissions: Record<string, object> = {}) =>
     .join("; ");
 
 const theme = (chat: ChatController) =>
-  chat.options.theme && chat.options.theme !== "auto"
-    ? chat.options.theme
+  chat.state.theme !== "auto"
+    ? chat.state.theme
     : matchMedia("(prefers-color-scheme: dark)").matches
       ? "dark"
       : "light";
@@ -179,6 +179,15 @@ export function Widget(props: { part: ActivityPart }) {
     requestAnimationFrame(() => notify("ui/notifications/host-context-changed", hostContext()));
     return mode === "fullscreen" ? "fullscreen" : "inline";
   };
+
+  // Tell the MCP App when the user switches theme
+  createEffect(
+    on(
+      () => chat.state.theme,
+      () => isApp() && notify("ui/notifications/host-context-changed", hostContext()),
+      { defer: true },
+    ),
+  );
 
   /** Text sent by a widget as a user message, ignored while a response streams */
   const sendText = (text: string) => void chat.send(text);

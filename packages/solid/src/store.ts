@@ -15,6 +15,7 @@ import type {
   Rating,
   StepPart,
   SubagentPart,
+  Theme,
   ToolPart,
 } from "./types.ts";
 
@@ -158,6 +159,21 @@ function loadSettings(): ChatSettings {
   }
 }
 
+const THEME_KEY = "light-chat-theme";
+
+/** Theme picked by the user when the switch is enabled, otherwise the `theme` option */
+function initTheme(options: ChatOptions): Theme {
+  if (options.themeSwitch) {
+    try {
+      const saved = localStorage.getItem(THEME_KEY);
+      if (saved === "auto" || saved === "light" || saved === "dark") return saved;
+    } catch {
+      // Storage unavailable
+    }
+  }
+  return options.theme ?? "auto";
+}
+
 type SettingsOptions = NonNullable<ChatOptions["settings"]>;
 
 /** Settings options normalized: enabled flags, selectable values and callbacks from the options */
@@ -205,6 +221,7 @@ export function createChat(options: ChatOptions) {
     streaming: false,
     conversationId: uid(),
     conversations: [] as ConversationSummary[],
+    theme: initTheme(options),
   });
   const config = settingsConfig(options.settings);
   const [settings, setSettings] = createStore(initSettings(config));
@@ -327,6 +344,15 @@ export function createChat(options: ChatOptions) {
     }
   }
 
+  function setTheme(theme: Theme) {
+    setState("theme", theme);
+    try {
+      localStorage.setItem(THEME_KEY, theme);
+    } catch {
+      // Storage unavailable, the theme still applies to this session
+    }
+  }
+
   const stop = () => controller?.abort();
 
   /** Send an MCP request of a widget to its server through the connector */
@@ -405,6 +431,7 @@ export function createChat(options: ChatOptions) {
     mcpRequest,
     setWidgetContext,
     setSetting,
+    setTheme,
     newConversation,
     openConversation,
     deleteConversation,

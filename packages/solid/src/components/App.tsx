@@ -106,11 +106,13 @@ export function App(props: { chat: ChatController }) {
     });
   }
 
-  const theme = chat.options.theme ?? "auto";
-
   return (
     <ChatContext.Provider value={chat}>
-      <div class="lc-root" style={{ "color-scheme": theme === "auto" ? "light dark" : theme }}>
+      <div
+        class="lc-root"
+        data-theme={chat.state.theme}
+        style={{ "color-scheme": chat.state.theme === "auto" ? "light dark" : chat.state.theme }}
+      >
         <Show when={chat.history}>
           <Sidebar chat={chat} onHit={highlight} />
         </Show>

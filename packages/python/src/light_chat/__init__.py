@@ -8,7 +8,9 @@ from typing import Any
 from fastapi import APIRouter
 from fastapi.responses import FileResponse, HTMLResponse
 
-__all__ = ["chat_router"]
+from light_chat.log import setup_logging
+
+__all__ = ["chat_router", "setup_logging"]
 
 # Bundled ESM build of the JS package, copied here by `vp run build:py`
 JS_FILE = Path(__file__).parent / "static" / "light-chat.js"

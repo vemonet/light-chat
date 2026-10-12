@@ -24,9 +24,9 @@ COPY pyproject.toml uv.lock ./
 COPY packages/python packages/python
 COPY server server
 COPY --from=js /repo/packages/js/dist/index.js packages/python/src/light_chat/static/light-chat.js
-RUN uv sync --frozen --no-editable --package agent-api
+RUN uv sync --frozen --no-editable --package uniprot-agent
 
-# User 1000, as Hugging Face Spaces run containers
+# Non-root user
 RUN useradd --create-home --uid 1000 app
 USER app
 WORKDIR /app/server

@@ -17,6 +17,7 @@ import sql from "highlight.js/lib/languages/sql";
 import typescript from "highlight.js/lib/languages/typescript";
 import xml from "highlight.js/lib/languages/xml";
 import yaml from "highlight.js/lib/languages/yaml";
+import sparql from "./sparql.ts";
 
 // Common languages only, to keep the bundle small (aliases like sh, js, ts, html, yml come with them)
 const languages = {
@@ -32,6 +33,7 @@ const languages = {
   markdown,
   python,
   rust,
+  sparql,
   sql,
   typescript,
   xml,

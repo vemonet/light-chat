@@ -1,4 +1,5 @@
-"""UniProt tools showing MCP Apps widgets: sequence features, 3D structure with features, and a search results table.
+"""UniProt tools showing MCP Apps widgets: sequence features, 3D structure with features, search results table,
+variant explorer and annotation matrix.
 
 The widget gets the full data in `structuredContent`, the model only gets a text summary.
 Widgets are in `widgets/`, local scripts and stylesheets they reference are inlined when served.
@@ -7,8 +8,9 @@ Widgets are in `widgets/`, local scripts and stylesheets they reference are inli
 import asyncio
 import re
 from collections import Counter
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 import httpx2
 from mcp.server.apps import Apps, ResourceCsp
@@ -16,6 +18,7 @@ from mcp_types import CallToolResult, TextContent
 
 UNIPROT_API = "https://rest.uniprot.org/uniprotkb"
 ALPHAFOLD_API = "https://alphafold.ebi.ac.uk/api/prediction"
+PROTEINS_API = "https://www.ebi.ac.uk/proteins/api"
 WIDGETS = Path(__file__).parent / "widgets"
 CDN = "https://cdn.jsdelivr.net"
 # UniProt queries not cached yet can take tens of seconds, and the API sometimes answers 503
@@ -42,13 +45,140 @@ CATEGORIES = {
     "Variants": ["Natural variant", "Mutagenesis"],
 }
 CATEGORY = {t: c for c, types in CATEGORIES.items() for t in types}
+# Variants sent to the explorer, the most documented first: well studied genes have tens of thousands
+MAX_VARIANTS = 4000
+# GO evidence codes of experimental annotations, IEA ones are electronic
+GO_EXPERIMENTAL = {"EXP", "IDA", "IPI", "IMP", "IGI", "IEP", "HTP", "HDA", "HMP", "HGI", "HEP"}
+# Annotation types of the matrix, GO aspects by the prefix of their term
+GO_ASPECTS = {"P": "GO biological process", "F": "GO molecular function", "C": "GO cellular component"}
 
 apps = Apps()
 
 
-def text_result(text: str, data: dict[str, Any]) -> CallToolResult:
+# Data sent to the widgets in `structuredContent`, as read by `widgets/*.html`
+class EntryInfo(TypedDict):
+    accession: str
+    id: str | None
+    name: str | None
+    gene: str | None
+    organism: str | None
+    length: int | None
+    sequence: str | None
+
+
+class Feature(TypedDict):
+    type: str
+    category: str
+    start: int
+    end: int
+    description: str
+    change: str | None
+    """Amino acid change of variants and mutagenesis, e.g. E17K"""
+    refs: list[str]
+    """Evidences, e.g. PubMed:123"""
+
+
+class FeaturesData(EntryInfo):
+    features: list[Feature]
+
+
+class AlphaFoldModel(TypedDict):
+    entryId: str
+    url: str
+    plddtUrl: str | None
+    meanPlddt: float | None
+    sequenceStart: int
+    fractions: dict[str, float | None]
+    """Fraction of residues per pLDDT confidence level"""
+
+
+class PdbEntry(TypedDict):
+    id: str
+    method: str | None
+    resolution: float | None
+    chains: str | None
+
+
+class StructureData(FeaturesData):
+    alphafold: AlphaFoldModel | None
+    pdb: list[PdbEntry]
+    source: str
+    """`alphafold` or the ID of the PDB entry shown"""
+    positions: list[int]
+
+
+class SearchRow(TypedDict):
+    accession: str
+    id: str | None
+    name: str | None
+    gene: str | None
+    organism: str | None
+    taxId: int | None
+    reviewed: bool
+    score: int
+    length: int | None
+
+
+class TableData(TypedDict):
+    query: str
+    total: int
+    rows: list[SearchRow]
+
+
+class Variant(TypedDict):
+    start: int
+    end: int
+    change: str
+    """e.g. R175H, or the HGVS protein notation of other changes"""
+    aa: str
+    """Row in the viewer: the new amino acid, `*` for stops, `d` for other changes"""
+    consequence: str
+    significance: list[str]
+    diseases: list[str]
+    evidence: list[str]
+    """UniProt (curated), Large scale study, ClinVar, PubMed"""
+    clinvar: list[str]
+    dbsnp: str | None
+    uniprot: str | None
+    """UniProt variant ID, e.g. VAR_005851"""
+    pubmed: list[str]
+    frequency: float | None
+    """Highest allele frequency in populations"""
+
+
+class VariantsData(EntryInfo):
+    features: list[Feature]
+    """Domains, repeats and motifs, to position the variants"""
+    variants: list[Variant]
+    total: int
+
+
+class Term(TypedDict):
+    id: str
+    name: str
+    type: str
+    """GO aspect, Keyword or Reactome pathway"""
+
+
+class MatrixProtein(TypedDict):
+    accession: str
+    gene: str
+    name: str | None
+    terms: dict[str, int]
+    """Term IDs with their evidence: 3 experimental, 2 curated or computational, 1 electronic (GO only)"""
+
+
+class MatrixData(TypedDict):
+    organism: str | None
+    proteins: list[MatrixProtein]
+    terms: dict[str, Term]
+    missing: list[str]
+    """Genes without a reviewed entry"""
+
+
+def text_result(text: str, data: Mapping[str, Any]) -> CallToolResult:
     """Summary for the model, full data for the widget"""
-    return CallToolResult(content=[TextContent(type="text", text=text)], structured_content=data)
+    return CallToolResult(content=[TextContent(type="text", text=text)], structured_content=dict(data))
 
 
 def http_client() -> httpx2.AsyncClient:
@@ -83,7 +213,7 @@ def protein_name(e: dict[str, Any]) -> str | None:
     return name.get("fullName", {}).get("value")
 
 
-def entry_info(e: dict[str, Any]) -> dict[str, Any]:
+def entry_info(e: dict[str, Any]) -> EntryInfo:
     genes = [g["geneName"]["value"] for g in e.get("genes", []) if "geneName" in g]
     return {
         "accession": e["primaryAccession"],
@@ -96,15 +226,14 @@ def entry_info(e: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def features_of(e: dict[str, Any]) -> list[dict[str, Any]]:
+def features_of(e: dict[str, Any]) -> list[Feature]:
     """Features with known positions, for the types shown in tracks"""
-    features = []
+    features: list[Feature] = []
     for f in e.get("features", []):
         start, end = f["location"]["start"].get("value"), f["location"]["end"].get("value")
         if f["type"] not in CATEGORY or start is None or end is None:
             continue
         alt = f.get("alternativeSequence") or {}
-        # Amino acid change of variants and mutagenesis, e.g. E17K
         change = None
         if alt.get("originalSequence"):
             change = f"{alt['originalSequence']}{start}{'/'.join(alt.get('alternativeSequences') or []) or 'del'}"
@@ -123,16 +252,16 @@ def features_of(e: dict[str, Any]) -> list[dict[str, Any]]:
     return features
 
 
-def feature_label(f: dict[str, Any], max_len: int = 60) -> str:
+def feature_label(f: Feature, max_len: int = 60) -> str:
     pos = str(f["start"]) if f["start"] == f["end"] else f"{f['start']}-{f['end']}"
     desc = f["description"].split(";")[0]
     desc = desc if len(desc) <= max_len else desc[: max_len - 3] + "..."
     return " ".join(x for x in [f["change"] or pos, desc] if x)
 
 
-def features_text(features: list[dict[str, Any]], per_type: int = 25) -> str:
+def features_text(features: list[Feature], per_type: int = 25) -> str:
     """Features listed by type, a few per type"""
-    by_type: dict[str, list[dict[str, Any]]] = {}
+    by_type: dict[str, list[Feature]] = {}
     for f in features:
         by_type.setdefault(f["type"], []).append(f)
     lines = []
@@ -142,7 +271,7 @@ def features_text(features: list[dict[str, Any]], per_type: int = 25) -> str:
     return "\n".join(lines)
 
 
-def entry_title(info: dict[str, Any]) -> str:
+def entry_title(info: EntryInfo) -> str:
     return f"{info['accession']} ({info['id']}, {info['name']}, {info['organism']}, {info['length']} aa)"
 
 
@@ -154,10 +283,10 @@ async def show_protein_features(accession: str) -> CallToolResult:
         e = await fetch_entry(client, accession)
     info, features = entry_info(e), features_of(e)
     text = f"Shown to the user: {len(features)} features of {entry_title(info)}\n{features_text(features)}"
-    return text_result(text, {**info, "features": features})
+    return text_result(text, FeaturesData(**info, features=features))
 
 
-async def fetch_alphafold(client: httpx2.AsyncClient, accession: str) -> dict[str, Any] | None:
+async def fetch_alphafold(client: httpx2.AsyncClient, accession: str) -> AlphaFoldModel | None:
     """AlphaFold DB model of the full sequence, if any"""
     res = await get(client, f"{ALPHAFOLD_API}/{accession}")
     if res.status_code != 200:
@@ -180,9 +309,9 @@ async def fetch_alphafold(client: httpx2.AsyncClient, accession: str) -> dict[st
     }
 
 
-def pdb_entries(e: dict[str, Any]) -> list[dict[str, Any]]:
+def pdb_entries(e: dict[str, Any]) -> list[PdbEntry]:
     """PDB cross-references of the entry, best resolution first"""
-    entries = []
+    entries: list[PdbEntry] = []
     for x in e.get("uniProtKBCrossReferences", []):
         if x["database"] != "PDB":
             continue
@@ -221,14 +350,9 @@ async def show_protein_structure(
         raise ValueError(f"No AlphaFold model or PDB entry for {accession}")
     positions = positions or []
     # PDB entries the user can switch to in the widget
-    data = {
-        **info,
-        "features": features,
-        "alphafold": alphafold,
-        "pdb": pdb[:100],
-        "source": source,
-        "positions": positions,
-    }
+    data = StructureData(
+        **info, features=features, alphafold=alphafold, pdb=pdb[:100], source=source, positions=positions
+    )
 
     # Summary: structure shown, confidence, features at the highlighted positions, other structures
     lines = [f"Shown to the user: 3D structure of {entry_title(info)}"]
@@ -254,7 +378,7 @@ async def show_protein_structure(
     return text_result("\n".join(lines), data)
 
 
-def search_row(e: dict[str, Any]) -> dict[str, Any]:
+def search_row(e: dict[str, Any]) -> SearchRow:
     return {
         "accession": e["primaryAccession"],
         "id": e.get("uniProtkbId"),
@@ -274,15 +398,17 @@ def counts(values: list[Any], top: int = 8) -> str:
 
 @apps.tool(resource_uri="ui://uniprot/table.html")
 async def search_proteins_table(query: str, max_rows: int = 1000) -> CallToolResult:
-    """Search UniProtKB with its query syntax (e.g. `kinase AND organism_id:9606 AND cc_disease:*`, `reviewed:true`)
-    and show all results to the user in a sortable table, with facets for reviewed status, organism and annotation
-    score. Only a summary is returned: the user can select rows in the table and send them back to you"""
+    """Search UniProtKB and show all results to the user in a sortable table, with facets for reviewed status,
+    organism and annotation score. Only a summary is returned: the user can select rows in the table and send them back
+    to you. Query syntax: `gene_exact:INS`, `protein_name:kinase`, `organism_id:9606` (one species),
+    `taxonomy_name:mammalia` (a clade with its descendants, by name), `reviewed:true`, `cc_disease:*`, combined with
+    AND, OR, NOT"""
     params = {
         "query": query,
         "size": min(500, max_rows),
         "fields": "accession,id,protein_name,gene_primary,organism_name,reviewed,annotation_score,length",
     }
-    rows: list[dict[str, Any]] = []
+    rows: list[SearchRow] = []
     async with http_client() as client:
         res = await get(client, f"{UNIPROT_API}/search", params)
         if res.status_code == 400:
@@ -307,7 +433,176 @@ async def search_proteins_table(query: str, max_rows: int = 1000) -> CallToolRes
         f"First rows: {first}\n"
         "The user can filter, sort and select rows in the table, the selection is sent to you."
     )
-    return text_result(text, {"query": query, "total": total, "rows": rows})
+    return text_result(text, TableData(query=query, total=total, rows=rows))
+
+
+async def fetch_variants(client: httpx2.AsyncClient, accession: str) -> list[dict[str, Any]]:
+    """Variants of the EBI Proteins API: UniProt, ClinVar, dbSNP, gnomAD, COSMIC..."""
+    res = await get(client, f"{PROTEINS_API}/variation/{accession}")
+    if res.status_code == 404:
+        return []
+    res.raise_for_status()
+    return res.json().get("features", [])
+
+
+def variant_of(v: dict[str, Any]) -> Variant:
+    start = int(v["begin"])
+    wild, new = v.get("wildType"), v.get("mutatedType") or v.get("alternativeSequence")
+    consequence = v.get("consequenceType") or "-"
+    if wild and new and len(wild) == len(new) == 1:
+        change = f"{wild}{start}{new}"
+    else:
+        protein_locs = (loc["loc"] for loc in v.get("locations", []) if loc["loc"].startswith("p."))
+        change = next(protein_locs, f"{wild or ''}{start}")
+    xrefs = v.get("xrefs", [])
+    evidences = v.get("evidences", []) + [ev for a in v.get("association", []) for ev in a.get("evidences", [])]
+    pubmed = list(dict.fromkeys(ev["source"]["id"] for ev in evidences if ev["source"]["name"] == "pubmed"))
+    clinvar = list(dict.fromkeys(x["id"] for x in xrefs if x["name"] == "ClinVar"))
+    source = v.get("sourceType")
+    evidence = [
+        name
+        for name, ok in [
+            ("UniProt", source in ("uniprot", "mixed")),
+            ("Large scale study", source in ("large_scale_study", "mixed")),
+            ("ClinVar", bool(clinvar)),
+            ("PubMed", bool(pubmed)),
+        ]
+        if ok
+    ]
+    frequencies = [f["frequency"] for f in v.get("populationFrequencies", []) if f.get("frequency")]
+    return Variant(
+        start=start,
+        end=int(v.get("end") or start),
+        change=change,
+        aa=new if consequence == "missense" and new and len(new) == 1 else "*" if consequence == "stop gained" else "d",
+        consequence="other" if consequence == "-" else consequence,
+        significance=list(dict.fromkeys(c["type"] for c in v.get("clinicalSignificances", []))),
+        diseases=list(dict.fromkeys(a["name"] for a in v.get("association", [])))[:5],
+        evidence=evidence,
+        clinvar=clinvar[:5],
+        dbsnp=next((x["id"] for x in xrefs if x["name"] == "dbSNP"), None),
+        uniprot=v.get("ftId"),
+        pubmed=pubmed[:5],
+        frequency=max(frequencies, default=None),
+    )
+
+
+def variant_rank(v: Variant) -> tuple[bool, ...]:
+    """Most documented first: curated, pathogenic, with a clinical significance, a disease, a dbSNP ID"""
+    pathogenic = any("athogenic" in s or s == "Disease" for s in v["significance"])
+    return ("UniProt" in v["evidence"], pathogenic, bool(v["significance"]), bool(v["diseases"]), bool(v["dbsnp"]))
+
+
+@apps.tool(resource_uri="ui://uniprot/variants.html")
+async def show_protein_variants(accession: str) -> CallToolResult:
+    """Show the disease and natural variants of a UniProtKB entry (e.g. P04637) to the user in an interactive
+    explorer: variants positioned on the sequence next to domains, filterable by consequence, clinical significance,
+    evidence and disease, with links to ClinVar, dbSNP and publications"""
+    async with http_client() as client:
+        e, raw = await asyncio.gather(fetch_entry(client, accession), fetch_variants(client, accession))
+    info = entry_info(e)
+    variants = sorted((variant_of(v) for v in raw), key=variant_rank, reverse=True)[:MAX_VARIANTS]
+    variants.sort(key=lambda v: v["start"])
+    domains = [f for f in features_of(e) if f["type"] in ("Domain", "Repeat", "Zinc finger", "DNA binding", "Motif")]
+
+    # Summary: counts, diseases, hotspots and curated pathogenic variants
+    pathogenic = [v for v in variants if any("athogenic" in s or s == "Disease" for s in v["significance"])]
+    curated = [v for v in pathogenic if "UniProt" in v["evidence"]]
+    hotspots = Counter(v["start"] for v in pathogenic).most_common(8)
+    shown = f"{len(variants)} most documented of {len(raw)}" if len(raw) > len(variants) else str(len(variants))
+    text = "\n".join(
+        [
+            f"Shown to the user: {shown} variants of {entry_title(info)}",
+            f"Consequences: {counts([v['consequence'] for v in variants])}",
+            f"Clinical significance: {counts([s for v in variants for s in v['significance']])}",
+            f"Diseases: {counts([d for v in variants for d in v['diseases']], 10)}",
+            f"Positions with most pathogenic variants: {', '.join(f'{p} ({n})' for p, n in hotspots) or 'none'}",
+            "Pathogenic variants curated in UniProt: "
+            + ("; ".join(f"{v['change']} ({', '.join(v['diseases'][:2]) or '-'})" for v in curated[:30]) or "none"),
+            "The user can filter the variants and click them for details and links to ClinVar and dbSNP.",
+        ]
+    )
+    return text_result(text, VariantsData(**info, features=domains, variants=variants, total=len(raw)))
+
+
+def go_level(evidence_type: str) -> int:
+    code = evidence_type.split(":")[0]
+    return 3 if code in GO_EXPERIMENTAL else 1 if code == "IEA" else 2
+
+
+def matrix_protein(e: dict[str, Any], terms: dict[str, Term]) -> MatrixProtein:
+    """GO terms, keywords (except technical ones) and Reactome pathways of an entry, added to `terms`"""
+    annotations: dict[str, int] = {}
+    for x in e.get("uniProtKBCrossReferences", []):
+        props = {p["key"]: p["value"] for p in x.get("properties", [])}
+        if x["database"] == "GO" and "GoTerm" in props:
+            aspect, name = props["GoTerm"].split(":", 1)
+            terms[x["id"]] = Term(id=x["id"], name=name, type=GO_ASPECTS[aspect])
+            annotations[x["id"]] = go_level(props.get("GoEvidenceType", ""))
+        elif x["database"] == "Reactome":
+            terms[x["id"]] = Term(id=x["id"], name=props.get("PathwayName", x["id"]), type="Reactome pathway")
+            annotations[x["id"]] = 3
+    for k in e.get("keywords", []):
+        if k["category"] not in ("Technical term", "Coding sequence diversity"):
+            terms[k["id"]] = Term(id=k["id"], name=k["name"], type="Keyword")
+            annotations[k["id"]] = 3
+    gene = next((g["geneName"]["value"] for g in e.get("genes", []) if "geneName" in g), e["primaryAccession"])
+    return MatrixProtein(accession=e["primaryAccession"], gene=gene, name=protein_name(e), terms=annotations)
+
+
+@apps.tool(resource_uri="ui://uniprot/matrix.html")
+async def show_annotation_matrix(genes: list[str], organism_id: int = 9606) -> CallToolResult:
+    """Show a heatmap of the reviewed UniProtKB entries of a gene list (e.g. ["TP53", "MDM2", "CDKN1A"]) by their
+    GO terms, keywords or Reactome pathways to the user, for a quick functional overview of the list.
+    `organism_id` is the NCBI taxonomy ID, human by default"""
+    genes = list(dict.fromkeys(g.strip() for g in genes if g.strip()))[:100]
+    if not genes:
+        raise ValueError("No gene given")
+    query = f"({' OR '.join(f'gene_exact:{g}' for g in genes)}) AND organism_id:{organism_id} AND reviewed:true"
+    params = {
+        "query": query,
+        "size": 500,
+        "fields": "accession,gene_primary,protein_name,organism_name,go,keyword,xref_reactome",
+    }
+    async with http_client() as client:
+        res = await get(client, f"{UNIPROT_API}/search", params)
+    if res.status_code == 400:
+        raise ValueError(f"Invalid gene list: {', '.join(res.json().get('messages', []))}")
+    res.raise_for_status()
+    results = res.json()["results"]
+
+    # One entry per gene, the one with it as primary name, else matching a synonym
+    terms: dict[str, Term] = {}
+    proteins: list[MatrixProtein] = []
+    missing = []
+    for gene in genes:
+        names = [{g["geneName"]["value"].upper() for g in e.get("genes", []) if "geneName" in g} for e in results]
+        synonyms = [{s["value"].upper() for g in e.get("genes", []) for s in g.get("synonyms", [])} for e in results]
+        entry = next((e for e, n in zip(results, names, strict=True) if gene.upper() in n), None) or next(
+            (e for e, n in zip(results, synonyms, strict=True) if gene.upper() in n), None
+        )
+        if entry and all(p["accession"] != entry["primaryAccession"] for p in proteins):
+            proteins.append(matrix_protein(entry, terms))
+        elif not entry:
+            missing.append(gene)
+    if not proteins:
+        raise ValueError(f"No reviewed UniProtKB entry for {', '.join(genes)} in organism {organism_id}")
+    organism = next((e.get("organism", {}).get("scientificName") for e in results), None)
+
+    # Summary: terms shared by most proteins, per annotation type
+    lines = [f"Shown to the user: annotation matrix of {len(proteins)} {organism} proteins"]
+    if missing:
+        lines.append(f"No reviewed entry for: {', '.join(missing)}")
+    for kind in [*GO_ASPECTS.values(), "Keyword", "Reactome pathway"]:
+        shared = Counter(t for p in proteins for t in p["terms"] if terms[t]["type"] == kind).most_common(8)
+        top = "; ".join(
+            f"{terms[t]['name']} ({n}: {', '.join(p['gene'] for p in proteins if t in p['terms'])})"
+            for t, n in shared
+            if n > 1
+        )
+        lines.append(f"Most shared, {kind}: {top or 'none'}")
+    lines.append("The user can switch annotation types and click terms or proteins to ask about them.")
+    return text_result("\n".join(lines), MatrixData(organism=organism, proteins=proteins, terms=terms, missing=missing))
 
 
 def widget_html(name: str) -> str:
@@ -339,3 +634,10 @@ apps.add_html_resource(
     ),
 )
 apps.add_html_resource("ui://uniprot/table.html", widget_html("table.html"), title="UniProt search results")
+apps.add_html_resource(
+    "ui://uniprot/variants.html",
+    widget_html("variants.html"),
+    title="UniProt variant explorer",
+    csp=ResourceCsp(resource_domains=[CDN]),
+)
+apps.add_html_resource("ui://uniprot/matrix.html", widget_html("matrix.html"), title="UniProt annotation matrix")

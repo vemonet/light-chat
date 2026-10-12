@@ -10,7 +10,16 @@
         margin: 0;
         height: 100%;
         font-family: system-ui, sans-serif;
+      }
+      /* Page follows the theme picked with the switch in the chat sidebar */
+      html {
         color-scheme: light dark;
+      }
+      html:has(.lc-root[data-theme="light"]) {
+        color-scheme: light;
+      }
+      html:has(.lc-root[data-theme="dark"]) {
+        color-scheme: dark;
       }
       body {
         display: flex;
@@ -42,14 +51,6 @@
           <option>openai</option>
         </select></label
       >
-      <label
-        >Theme
-        <select id="theme">
-          <option>auto</option>
-          <option>light</option>
-          <option>dark</option>
-        </select></label
-      >
       <label>URL <input id="url" size="30" placeholder="defaults to local mock" /></label>
     </header>
     <div id="chat"></div>
@@ -79,7 +80,7 @@
               apply: (req, effort) => req.url.searchParams.set("effort", effort),
             },
           },
-          theme: $("theme").value,
+          themeSwitch: true,
           examples: [
             "What is the weather in Lausanne?",
             "Write a python snippet to fetch weather data",
@@ -92,7 +93,7 @@
         });
       }
 
-      for (const id of ["protocol", "theme", "url"]) $(id).addEventListener("change", mount);
+      for (const id of ["protocol", "url"]) $(id).addEventListener("change", mount);
       mount();
     </script>
   </body>

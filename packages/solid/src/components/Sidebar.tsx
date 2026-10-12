@@ -1,7 +1,9 @@
 import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
+import type { JSX } from "solid-js";
 import type { SearchHit } from "../history.ts";
 import type { ChatController } from "../store.ts";
-import { CloseIcon, PanelIcon, PlusIcon, SearchIcon, TrashIcon } from "./icons.tsx";
+import type { Theme } from "../types.ts";
+import { CloseIcon, MonitorIcon, MoonIcon, PanelIcon, PlusIcon, SearchIcon, SunIcon, TrashIcon } from "./icons.tsx";
 
 const STORAGE_KEY = "light-chat-sidebar";
 const narrow = () => matchMedia("(max-width: 700px)").matches;
@@ -17,6 +19,13 @@ function initialCollapsed(openByDefault: boolean) {
   }
   return !openByDefault;
 }
+
+/** Theme switch states, in click order */
+const THEMES: Record<Theme, { label: string; icon: () => JSX.Element; next: Theme }> = {
+  auto: { label: "System", icon: MonitorIcon, next: "light" },
+  light: { label: "Light", icon: SunIcon, next: "dark" },
+  dark: { label: "Dark", icon: MoonIcon, next: "auto" },
+};
 
 /** Text with every case-insensitive occurrence of `query` in a <mark> */
 function Highlighted(props: { text: string; query: string }) {
@@ -141,6 +150,18 @@ export function Sidebar(props: {
           >
             <PanelIcon />
           </button>
+          {/* Theme switch, cycles system > light > dark */}
+          <Show when={chat.options.themeSwitch}>
+            <button
+              type="button"
+              class="lc-sidebar-btn lc-square"
+              aria-label={`Theme: ${THEMES[chat.state.theme].label}`}
+              title={`Theme: ${THEMES[chat.state.theme].label}`}
+              onClick={() => chat.setTheme(THEMES[chat.state.theme].next)}
+            >
+              {THEMES[chat.state.theme].icon()}
+            </button>
+          </Show>
           {/* Search button, expands into a search box with a clear button */}
           <Show when={canSearch}>
             <div class="lc-search" classList={{ "lc-on": searching() }}>

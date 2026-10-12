@@ -14,7 +14,7 @@ new Chat("chat", { url: "/agent" });
 - Conversation history in a collapsible sidebar with search, stored in IndexedDB or your own store
 - File attachments (button or paste), sent as multimodal content
 - Optional settings in the toolbar under the input box (model, effort, API key), saved in localStorage
-- Markdown rendered with [marked](https://marked.js.org), sanitized with [DOMPurify](https://github.com/cure53/DOMPurify), code highlighted with [highlight.js](https://highlightjs.org) (common languages)
+- Markdown rendered with [marked](https://marked.js.org), sanitized with [DOMPurify](https://github.com/cure53/DOMPurify), code highlighted with [highlight.js](https://highlightjs.org) (common languages and SPARQL)
 - Copy, date/time and optional thumbs up/down rating under each message
 - Light/dark theme through the standard CSS `color-scheme` and `light-dark()`
 - Works on desktop and mobile, zero runtime dependencies (Solid, marked, DOMPurify and highlight.js are bundled), ~79 kB gzipped
@@ -72,6 +72,7 @@ const chat = new Chat("chat", {
   examples: ["What can you do?", "Summarize this document"], // example questions shown when empty, sent on click
   placeholder: "Send a message",
   theme: "auto", // "auto" (OS preference) | "light" | "dark"
+  themeSwitch: false, // button in the sidebar to switch between system, light and dark, the user choice is remembered
   attachments: true, // show the + button to attach files
   history: true, // conversation history sidebar, false to disable, or your own HistoryStore
   sidebarOpen: false, // open the sidebar on first visit, then the user choice is remembered
@@ -210,7 +211,7 @@ Events: `text`, `reasoning`, `tool-start` (`id`, `name`), `tool-args` (`id`, `de
 
 ## Theming
 
-The theme follows the OS preference by default (`color-scheme: light dark` on `.lc-root`). Use `theme: "light" | "dark"` to force one, or make it follow your page `color-scheme`:
+The theme follows the OS preference by default (`color-scheme: light dark` on `.lc-root`). Use `theme: "light" | "dark"` to force one, `themeSwitch: true` to let the user pick it from a button in the sidebar (saved in localStorage, overrides `theme`, the current one is in the `data-theme` attribute of `.lc-root`), or make it follow your page `color-scheme`:
 
 ```css
 .lc-root {
