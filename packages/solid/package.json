@@ -1,6 +1,6 @@
 {
   "name": "light-chat-solid",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "Lightweight chat UI SolidJS component with streaming support for AG-UI and OpenAI-compatible backends",
   "keywords": [
     "ag-ui",

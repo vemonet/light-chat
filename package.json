@@ -7,13 +7,17 @@
     "build": "vp run -r build",
     "test": "vp test",
     "check": "vp check",
+    "release": "release-it",
     "prepare": "vp config --no-agent"
   },
   "devDependencies": {
+    "@release-it/bumper": "^8.0.1",
     "@types/node": "^26.6.4",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "@vitest/browser-playwright": "5.0.3",
+    "git-cliff": "^2.14.2",
     "playwright": "^1.63.0",
+    "release-it": "^21.1.1",
     "rolldown-plugin-solid": "^0.2.1",
     "typescript": "^7.0.2",
     "vite": "catalog:",
@@ -25,6 +29,36 @@
       "name": "pnpm",
       "version": "12.10.1",
       "onFail": "download"
+    }
+  },
+  "release-it": {
+    "git": {
+      "requireBranch": "main",
+      "commitMessage": "chore: release v${version}",
+      "tagName": "v${version}",
+      "tagAnnotation": "Release v${version}",
+      "changelog": "git-cliff --unreleased --strip all"
+    },
+    "npm": false,
+    "github": {
+      "release": false
+    },
+    "plugins": {
+      "@release-it/bumper": {
+        "in": "packages/js/package.json",
+        "out": [
+          "packages/js/package.json",
+          "packages/solid/package.json"
+        ]
+      }
+    },
+    "hooks": {
+      "before:init": "vp check",
+      "after:bump": [
+        "uv version --package light-chat ${version} --no-sync",
+        "git-cliff --tag v${version} -o CHANGELOG.md",
+        "git add CHANGELOG.md"
+      ]
     }
   }
 }

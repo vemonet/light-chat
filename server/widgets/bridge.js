@@ -59,7 +59,7 @@ const mcpApp = (() => {
     start: (name) =>
       request("ui/initialize", {
         protocolVersion: "2026-01-26",
-        appInfo: { name, version: "0.1.0" },
+        appInfo: { name, version: "0.0.1" },
         appCapabilities: { availableDisplayModes: ["inline", "fullscreen"] },
       }).then((r) => {
         setHostContext(r.hostContext);

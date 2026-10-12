@@ -3,6 +3,8 @@ name: CI
 on:
   push:
     branches: [main]
+    # Release tags pushed by `vp run release`, publish the packages once the tests pass
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
@@ -25,6 +27,8 @@ jobs:
           node-version: "24"
           cache: true
 
+      - uses: astral-sh/setup-uv@v10.3.0
+
       - run: vp install
 
       # Headless Chromium for the browser and e2e test projects
@@ -38,6 +42,24 @@ jobs:
 
       - name: Build packages
         run: vp run -r build
+
+      # npm tarballs (workspace: versions resolved), Python wheel and sdist with the JS bundled
+      - name: Pack packages
+        run: |
+          vp pm pack -r --pack-destination npm-dist
+          vp run build:py
+
+      - uses: actions/upload-artifact@v7.0.2
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          name: npm-dist
+          path: npm-dist/*.tgz
+
+      - uses: actions/upload-artifact@v7.0.2
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          name: pypi-dist
+          path: packages/python/dist/*
 
       - name: Build demo
         run: vp build
@@ -60,3 +82,65 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v5.0.1
+
+  # Trusted publishing (OIDC), no token: configure the publisher on npm and PyPI with workflow `ci.yml`
+  publish-npm:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      # Trusted publishing requires npm >= 11.5.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: npm-dist
+          path: npm-dist
+
+      - run: for f in npm-dist/*.tgz; do npm publish "$f" --access public; done
+
+  publish-pypi:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: astral-sh/setup-uv@v10.3.0
+
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: pypi-dist
+          path: pypi-dist
+
+      - run: uv publish --trusted-publishing always pypi-dist/*
+
+  github-release:
+    needs: [publish-npm, publish-pypi]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # Full history and tags, for git-cliff to find the commits of this release
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v10.3.0
+
+      # Release notes: the changelog section of the current tag
+      - name: Create GitHub release
+        run: |
+          uvx git-cliff@2.14.2 --current --strip all -o RELEASE_NOTES.md
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file RELEASE_NOTES.md --verify-tag
+        env:
+          GH_TOKEN: ${{ github.token }}

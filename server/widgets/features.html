@@ -222,6 +222,34 @@
         const feature = e.detail?.eventType === "click" && e.detail.feature;
         if (feature) select(entry.features[Number(feature.accession)]);
       });
+
+      /** Feature hit box closest to the point within `snap` px, ignoring parts hidden by the margins */
+      function nearestFeature(track, x, y, snap = 6) {
+        const box = track.getBoundingClientRect();
+        const left = box.left + track["margin-left"];
+        const right = box.right - track["margin-right"];
+        if (x < left || x > right) return null;
+        let best = null;
+        let bestDist = snap;
+        for (const rect of track.querySelectorAll("rect.outer-rectangle")) {
+          const r = rect.getBoundingClientRect();
+          const rl = Math.max(r.left, left);
+          const rr = Math.min(r.right, right);
+          if (rl > rr) continue;
+          const dist = Math.hypot(Math.max(rl - x, 0, x - rr), Math.max(r.top - y, 0, y - r.bottom));
+          if (dist <= bestDist) [best, bestDist] = [rect, dist];
+        }
+        return best;
+      }
+
+      // Features can be under 1px wide when zoomed out: a click that misses them is forwarded
+      // to the nearest feature of the same track, so direct hits and neighbouring rows are unaffected
+      $("viewer").addEventListener("click", (e) => {
+        const track = e.target.closest?.("nightingale-track");
+        if (!track || e.target.closest("rect.outer-rectangle")) return;
+        const rect = nearestFeature(track, e.clientX, e.clientY);
+        if (rect) rect.dispatchEvent(new MouseEvent("click", e));
+      });
       $("details").addEventListener("click", (e) => {
         const url = e.target.dataset?.url;
         if (url) void mcpApp.openLink(url);

@@ -1,6 +1,6 @@
 [project]
 name = "uniprot-agent"
-version = "0.1.0"
+version = "0.0.1"
 description = "UniProt MCP server and AG-UI chat endpoint"
 requires-python = ">=3.13"
 dependencies = [

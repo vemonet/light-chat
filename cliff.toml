@@ -1,0 +1,54 @@
+# git-cliff config, generates CHANGELOG.md and the GitHub release notes from conventional commits
+# https://git-cliff.org/docs/configuration
+
+[changelog]
+header = """
+# Changelog
+
+All notable changes to this project will be documented in this file.\n
+"""
+# One section per release, commits grouped by type, linked to their GitHub commit
+body = """
+{% if version %}\
+    ## [{{ version | trim_start_matches(pat="v") }}](<REPO>/releases/tag/{{ version }}) - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+    ## Unreleased
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+    ### {{ group | striptags | trim | upper_first }}
+    {% for commit in commits %}
+        - {% if commit.scope %}**{{ commit.scope }}:** {% endif %}\
+            {% if commit.breaking %}[**breaking**] {% endif %}\
+            {{ commit.message | upper_first }} ([{{ commit.id | truncate(length=7, end="") }}](<REPO>/commit/{{ commit.id }}))\
+    {% endfor %}
+{% endfor %}\n
+"""
+trim = true
+postprocessors = [{ pattern = '<REPO>', replace = "https://github.com/vemonet/light-chat" }]
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+split_commits = false
+protect_breaking_commits = false
+# The HTML comments only order the groups, they are stripped from the output
+commit_parsers = [
+  { message = "^feat", group = "<!-- 0 -->Features" },
+  { message = "^fix", group = "<!-- 1 -->Bug Fixes" },
+  { message = "^refactor", group = "<!-- 2 -->Refactor" },
+  { message = "^doc", group = "<!-- 3 -->Documentation" },
+  { message = "^perf", group = "<!-- 4 -->Performance" },
+  { message = "^style", group = "<!-- 5 -->Styling" },
+  { message = "^test", group = "<!-- 6 -->Testing" },
+  # Release commits made by release-it
+  { message = "^chore: release v", skip = true },
+  { message = "^chore\\(deps.*\\)", skip = true },
+  { message = "^build|^chore|^ci", group = "<!-- 7 -->Miscellaneous" },
+  { body = ".*security", group = "<!-- 8 -->Security" },
+  { message = "^revert", group = "<!-- 9 -->Revert" },
+  { message = ".*", group = "<!-- 10 -->Other" },
+]
+filter_commits = false
+tag_pattern = "v[0-9].*"
+topo_order = false
+sort_commits = "newest"

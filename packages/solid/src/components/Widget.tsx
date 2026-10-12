@@ -3,6 +3,7 @@ import { unwrap } from "solid-js/store";
 import { ChatContext, type ChatController } from "../store.ts";
 import type { ActivityPart, McpRequest } from "../types.ts";
 import { CloseIcon } from "./icons.tsx";
+import { version } from "../../package.json";
 
 /** Activity type of tool results with a UI, from the AG-UI MCP Apps middleware */
 export const WIDGET_ACTIVITY = "mcp-apps";
@@ -202,7 +203,7 @@ export function Widget(props: { part: ActivityPart }) {
         case "ui/initialize":
           return reply({
             protocolVersion: params?.protocolVersion ?? PROTOCOL_VERSION,
-            hostInfo: { name: "light-chat", version: "0.1.0" },
+            hostInfo: { name: "light-chat", version },
             hostCapabilities: {
               openLinks: {},
               serverTools: {},

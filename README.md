@@ -111,6 +111,12 @@ vp exec playwright install chromium
 
 Run a single project with `vp test --project e2e`.
 
-The [CI workflow](.github/workflows/ci.yml) runs the checks, tests and builds on each push and pull request, and deploys the demo to GitHub Pages on pushes to `main` (in the repository settings, set Pages source to "GitHub Actions").
+Release new version:
+
+```sh
+vp run release
+```
+
+The [CI workflow](.github/workflows/ci.yml) runs the checks, tests and builds on each push and pull request, and deploys the demo to GitHub Pages on pushes to `main`.
 
 In the workspace, `light-chat-solid` exports its sources, so nothing needs to be built for development. Its `publishConfig` points to `dist` when published. All the UI and logic live in `light-chat-solid`, `light-chat` is a thin class wrapping the component.
