@@ -1,0 +1,17 @@
+[project]
+name = "pdn-agent"
+version = "0.0.1"
+description = "MCP servers of the federated data ecosystem, AG-UI agent using them and chat UI"
+requires-python = ">=3.13"
+dependencies = [
+  "light-chat[mcp-apps]",
+  "fastapi >=0.142.2",
+  "httpx2 >=2.13.1",
+  "mcp >=2.3.0",
+  "pydantic-ai-slim[ag-ui,anthropic,mcp,openai] >=2.54.0",
+  "requests >=2.34.2",
+  "uvicorn[standard] >=0.54.0",
+]
+
+[tool.uv.sources]
+light-chat = { workspace = true }

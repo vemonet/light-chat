@@ -1,0 +1,91 @@
+# Pathogen Data Network Agent
+
+> Based on https://github.com/NIAID-BRC-Codeathons/federated-data-ecosystem-assistant
+
+FastAPI app federating biological data resources through MCP servers, for light-chat:
+
+- `/<server>/mcp`: MCP servers (streamable HTTP), in [`servers/`](servers), ported from the codeathon repo to MCP Python SDK 2:
+
+  | Path                 | Resource                                                                                              | Tools                         |
+  | -------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------- |
+  | `/pdn/mcp`           | [Pathogen Data Network](https://pathoplexus.org) sequences and metadata through LAPIS                 | `lapis_*`                     |
+  | `/uniprot/mcp`       | [UniProt](https://www.uniprot.org) proteins, with interactive widgets                                  | `uniprot_*`, `show_*`, `search_proteins_table` |
+  | `/mygene/mcp`        | [MyGene.info](https://mygene.info) gene annotation                                                     | `mygene_*`                    |
+  | `/myvariant/mcp`     | [MyVariant.info](https://myvariant.info) variant annotation                                            | `myvariant_*`                 |
+  | `/ncbi/mcp`          | [NCBI E-utilities](https://www.ncbi.nlm.nih.gov/books/NBK25501/) and Pathogen Detection AMR isolates   | `ncbi_*`                      |
+  | `/pubmed/mcp`        | [PubMed](https://pubmed.ncbi.nlm.nih.gov) literature, as context only                                  | `pubmed_*`                    |
+  | `/geo/mcp`           | [GEO](https://www.ncbi.nlm.nih.gov/geo/) gene expression studies and their processed files             | `geo_*`                       |
+  | `/nde/mcp`           | [NIAID Data Ecosystem](https://data.niaid.nih.gov) datasets and tools                                  | `nde_*`                       |
+  | `/brc-analytics/mcp` | [BRC Analytics](https://brc-analytics.org) ENA sequencing runs, complementing their public MCP server  | `brc_ena_*`                   |
+
+- `/chat`: AG-UI endpoint, a Pydantic AI agent using the MCP servers of the app, called in-process, and the public MCP servers of [STRING](https://mcp.string-db.org), [ExPASy](https://chat.expasy.org/mcp), [BRC Analytics](https://brc-analytics.org/api/v1/mcp/) and [Excalidraw](https://mcp.excalidraw.com/mcp). Public servers not answering at startup are skipped
+- `/`: chat UI from the [`light-chat` Python package](../packages/python/README.md)
+
+The BV-BRC MCP server of the codeathon repo is not included, it requires an authentication.
+
+It is part of the uv workspace defined at the repo root, which installs the Python package from `../packages/python`. Build the JS bundle and copy it in the Python package first, from the repo root:
+
+```bash
+vp run build:py
+```
+
+The agent uses an OpenAI-compatible endpoint, configured in a `.env` file:
+
+```bash
+OPENAI_API_KEY=sk-...
+# Optional, the EGI endpoint by default
+OPENAI_BASE_URL=https://llm.ai.egi.eu/v1
+# Optional, tool calling models to pick from in the UI, the first is the default
+MODELS=qwen3.8-27b,glm-5.3,kimi-k3,gpt-oss-120b
+# Optional, raises the NCBI rate limit from 3 to 10 requests per second
+NCBI_API_KEY=
+# Optional, base URL of the MCP servers used by the agent, by default the ones of this app are called in-process
+# MCP_BASE_URL=http://localhost:8084
+```
+
+Start the API:
+
+```bash
+uv run --env-file .env uvicorn app:app --port 8084 --reload
+```
+
+Open http://localhost:8084, and pick the model in the settings menu. Try "How many Klebsiella pneumoniae isolates in NCBI Pathogen Detection carry a KPC carbapenemase gene?", "Which E. coli gene expression studies involve ciprofloxacin?" or "Show the domains, PTMs and variants of human AKT1".
+
+## Provenance
+
+The [system prompt](prompt.py) asks the model to lead with the answer, then write a `<!--PROVENANCE-->` marker, followed by the resources it chose and why, every tool call with its arguments and results, how the numbers were derived, caveats and sources. [`provenance.py`](provenance.py) sends the text after the marker as the text message of a `provenance` AG-UI sub-agent, in the same LLM response: the chat shows it collapsed below the answer, rendered as markdown, and does not send it back in the history of the next turns.
+
+## Deploy with Docker
+
+The image builds the chat UI and installs the agent, from the repo root. The [compose file](compose.yml) uses [OpenRouter](https://openrouter.ai) with DeepSeek V4.1 Flash (default), Mistral Large 4, Claude Haiku 5.5 and GPT-6 Luna, overriding `OPENAI_BASE_URL` and `MODELS` from the `.env` file, which holds the OpenRouter key:
+
+```bash
+OPENAI_API_KEY=sk-or-...
+```
+
+Start it on http://localhost:8084, from this folder:
+
+```bash
+docker compose up -d --build
+```
+
+Or build and run the image directly:
+
+```bash
+docker build -f pdn-agent/Dockerfile -t pdn-agent .
+docker run -p 8084:8000 --env-file pdn-agent/.env pdn-agent
+```
+
+The server listens on port 8000 in the container, and trusts `X-Forwarded-*` headers for a reverse proxy in front of it.
+
+## How tool MCP UIs work
+
+Tool UIs are handled by light-chat, the server only forwards ([`light_chat.mcp_apps`](../packages/python/src/light_chat/mcp_apps.py), from the `mcp-apps` extra of the [Python package](../packages/python/README.md)): raw results of the UniProt and Excalidraw tools are sent to the chat in an `mcp-apps` activity, and widgets read their resource and call tools through `/chat` with `forwardedProps.__proxiedMCPRequest`. Tools only visible to apps are hidden from the model. The AG-UI `context` sent by the chat (e.g. a diagram edited by the user) is added to the instructions.
+
+The UniProt widgets ([`servers/uniprot_apps.py`](servers/uniprot_apps.py) and [`widgets/`](widgets)) get the full data in the tool `structuredContent`, widgets never call UniProt, they load their structures from AlphaFold DB and PDBe:
+
+- `show_protein_features`: [Nightingale](https://github.com/ebi-webcomponents/nightingale) tracks of domains, sites, PTMs, processing, topology, secondary structure and variants, zoomable along the sequence. Clicking a feature shows its details and evidence
+- `show_protein_structure`: AlphaFold model colored by pLDDT, or a PDB entry, in Mol\* ([PDBe Molstar](https://github.com/molstar/pdbe-molstar)), next to the features list: clicking one highlights its residues. Residues can be highlighted from the start, e.g. a mutation
+- `search_proteins_table`: results of a UniProtKB query (up to 1000 rows) in a sortable table with facets for reviewed status, annotation score and organism. The model only gets a summary, the rows selected by the user are sent back as context, with a prompt
+- `show_protein_variants`: disease and natural variants of the [EBI Proteins API](https://www.ebi.ac.uk/proteins/api/doc/) positioned on the sequence next to the domains, in the Nightingale variation viewer, filterable by consequence, clinical significance, evidence and disease. Clicking a variant shows its links to ClinVar, dbSNP and PubMed
+- `show_annotation_matrix`: heatmap of the proteins of a gene list by GO terms, keywords or Reactome pathways, shaded by GO evidence, for a quick functional overview without an enrichment tool
