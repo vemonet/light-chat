@@ -16,6 +16,8 @@ import requests
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
+from .myvariant_apps import apps
+
 mcp = MCPServer(
     name="MyVariant MCP",
     dependencies=["mcp", "requests"],
@@ -24,6 +26,7 @@ mcp = MCPServer(
         "population frequency, deleteriousness predictions, and functional "
         "consequence, cross-referenced to ClinVar, dbSNP, gnomAD and CIViC"
     ),
+    extensions=[apps],
 )
 
 

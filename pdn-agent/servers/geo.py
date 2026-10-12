@@ -42,6 +42,8 @@ import requests
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
+from .geo_apps import apps
+
 mcp = MCPServer(
     name="GEO MCP",
     dependencies=["mcp", "requests"],
@@ -52,6 +54,7 @@ mcp = MCPServer(
         "the only source here with expression data. Resolve GEO accessions with "
         "geo_resolve_accession rather than by searching for them."
     ),
+    extensions=[apps],
 )
 
 EUTILS_API = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"

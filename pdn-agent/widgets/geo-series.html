@@ -1,0 +1,431 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="common.css" />
+    <style>
+      header h1 {
+        flex: 1 1 320px;
+        line-height: 1.35;
+      }
+      header .acc {
+        color: var(--accent);
+        margin-right: 6px;
+      }
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 14px;
+        font-size: 12px;
+        margin-bottom: 8px;
+      }
+      .meta b {
+        color: var(--muted);
+        font-weight: 500;
+        margin-right: 4px;
+      }
+      .text {
+        margin: 0 0 6px;
+        white-space: pre-line;
+      }
+      .text.clamp {
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .text b {
+        font-weight: 600;
+      }
+      h2 {
+        font-size: 13px;
+        font-weight: 600;
+        margin: 14px 0 6px;
+        display: flex;
+        gap: 8px;
+        align-items: baseline;
+      }
+      h2 .muted {
+        font-weight: 400;
+        font-size: 12px;
+      }
+      .toolbar {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 6px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .toolbar input {
+        flex: 1;
+        min-width: 140px;
+      }
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-bottom: 6px;
+        font-size: 12px;
+      }
+      .chip {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 0 8px;
+      }
+      .chip i {
+        font-style: normal;
+        color: var(--muted);
+      }
+      .scroll {
+        max-height: 360px;
+        overflow: auto;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+      }
+      :root[data-mode="fullscreen"] .scroll.samples {
+        max-height: calc(100vh - 380px);
+        min-height: 200px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+      th,
+      td {
+        padding: 4px 8px;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+        white-space: nowrap;
+      }
+      tbody tr:last-child td {
+        border-bottom: 0;
+      }
+      td.wrap {
+        white-space: normal;
+        min-width: 160px;
+      }
+      th {
+        position: sticky;
+        top: 0;
+        background: var(--panel);
+        cursor: pointer;
+        user-select: none;
+        z-index: 1;
+        font-weight: 600;
+      }
+      th[data-dir="asc"]::after {
+        content: " \25B2";
+      }
+      th[data-dir="desc"]::after {
+        content: " \25BC";
+      }
+      #samples tr {
+        cursor: pointer;
+      }
+      tbody tr:hover,
+      tr.selected {
+        background: var(--hover);
+      }
+      td.num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+      .selection {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        margin-top: 8px;
+      }
+      .selection input {
+        flex: 1;
+        min-width: 0;
+      }
+      .note {
+        font-size: 12px;
+        color: var(--muted);
+        margin: 4px 0;
+      }
+      .files td:first-child {
+        white-space: normal;
+        word-break: break-all;
+      }
+      .files button {
+        padding: 1px 8px;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1 id="title">Loading series</h1>
+      <button type="button" id="geo">GEO page</button>
+      <button type="button" id="fullscreen">Full screen</button>
+    </header>
+    <div class="meta" id="meta"></div>
+    <p class="text clamp" id="summary"></p>
+    <p class="text clamp" id="design"></p>
+    <a id="more" hidden>Show more</a>
+
+    <h2>Samples <span class="muted" id="sample-count"></span></h2>
+    <div class="chips" id="shared"></div>
+    <div class="note" id="samples-note" hidden></div>
+    <div class="toolbar">
+      <input id="filter" type="search" placeholder="Filter samples by accession, title, characteristics" />
+    </div>
+    <div class="scroll samples">
+      <table>
+        <thead id="head"></thead>
+        <tbody id="samples"></tbody>
+      </table>
+    </div>
+    <div class="selection">
+      <span id="count" class="muted">No selection</span>
+      <input id="prompt" placeholder="Compare these samples" />
+      <button type="button" class="primary" id="send" disabled>Send</button>
+    </div>
+
+    <h2>Supplementary files <span class="muted" id="file-count"></span></h2>
+    <div class="note" id="files-note" hidden></div>
+    <div class="scroll files" id="files-box">
+      <table>
+        <thead>
+          <tr>
+            <th>File</th>
+            <th>Size</th>
+            <th>Modified</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="files"></tbody>
+      </table>
+    </div>
+
+    <script src="colors.js"></script>
+    <script src="bridge.js"></script>
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const geoUrl = (acc) => `https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=${acc}`;
+      const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+      let data;
+      // Table columns: [key, label, value of a sample], characteristics added when they vary between samples
+      let columns = [];
+      let sort = { col: "accession", dir: 1 };
+      const selected = new Set();
+
+      /** Values of the fields varying between samples become columns, the shared ones are shown once */
+      function buildColumns() {
+        const s = data.samples;
+        const fields = [
+          ["source", "Source", (x) => x.source],
+          ["organism", "Organism", (x) => x.organism],
+          ...[...new Set(s.flatMap((x) => Object.keys(x.characteristics)))].map((k) => [
+            `c:${k}`,
+            k,
+            (x) => x.characteristics[k],
+          ]),
+          ["description", "Description", (x) => x.description],
+        ];
+        const shared = [];
+        columns = [
+          ["accession", "Sample", (x) => x.accession],
+          ["title", "Title", (x) => x.title],
+        ];
+        for (const f of fields) {
+          const values = new Set(s.map((x) => f[2](x) ?? ""));
+          if (values.size > 1) columns.push(f);
+          else if ([...values][0] && s.length > 1) shared.push([f[1], [...values][0]]);
+        }
+        $("shared").innerHTML = shared.length
+          ? `<span class="muted">All samples:</span>` +
+            shared
+              .map(
+                ([k, v]) =>
+                  `<span class="chip" title="${escapeHtml(v)}"><i>${escapeHtml(k)}:</i> ${escapeHtml(v.length > 80 ? v.slice(0, 77) + "..." : v)}</span>`,
+              )
+              .join("")
+          : "";
+        $("head").innerHTML =
+          `<tr><th data-col="selected"><input type="checkbox" id="all" aria-label="Select all shown" /></th>${columns
+            .map(
+              ([k, label]) =>
+                `<th data-col="${escapeHtml(k)}" ${k === sort.col ? `data-dir="asc"` : ""}>${escapeHtml(label[0].toUpperCase() + label.slice(1))}</th>`,
+            )
+            .join("")}</tr>`;
+      }
+
+      const shownSamples = () => {
+        const text = $("filter").value.toLowerCase();
+        let list = data.samples.filter(
+          (s) =>
+            !text ||
+            [s.accession, s.title, s.source, s.description, ...Object.values(s.characteristics)]
+              .join(" ")
+              .toLowerCase()
+              .includes(text),
+        );
+        const col = columns.find((c) => c[0] === sort.col);
+        const key = sort.col === "selected" ? (s) => (selected.has(s.accession) ? "0" : "1") : (col?.[2] ?? (() => ""));
+        return [...list].sort((a, b) => collator.compare(key(a) ?? "", key(b) ?? "") * sort.dir);
+      };
+
+      function renderSamples() {
+        const list = shownSamples();
+        $("samples").innerHTML =
+          list
+            .map(
+              (s) => `<tr class="${selected.has(s.accession) ? "selected" : ""}" data-acc="${escapeHtml(s.accession)}">
+                <td><input type="checkbox" ${selected.has(s.accession) ? "checked" : ""} aria-label="Select ${escapeHtml(s.accession)}" /></td>
+                ${columns
+                  .map(([k, , get]) =>
+                    k === "accession"
+                      ? `<td><a data-url="${geoUrl(escapeHtml(s.accession))}">${escapeHtml(s.accession)}</a></td>`
+                      : `<td class="${k === "title" || k === "description" ? "wrap" : ""}">${escapeHtml(get(s) ?? "")}</td>`,
+                  )
+                  .join("")}</tr>`,
+            )
+            .join("") || `<tr><td colspan="${columns.length + 1}" class="muted">No sample matches the filter</td></tr>`;
+        $("sample-count").textContent =
+          list.length === data.samples.length ? `${data.sample_count}` : `${list.length} of ${data.samples.length}`;
+        $("all").checked = list.length > 0 && list.every((s) => selected.has(s.accession));
+        $("all").dataset.shown = JSON.stringify(list.map((s) => s.accession));
+      }
+
+      function renderFiles() {
+        const files = data.files;
+        $("file-count").textContent = files.length ? `${files.length}` : "";
+        $("files-box").hidden = !files.length;
+        $("files-note").hidden = !data.files_note;
+        $("files-note").textContent = data.files_note ?? "";
+        $("files").innerHTML = files
+          .map(
+            (f) => `<tr>
+              <td><a data-url="${escapeHtml(f.url)}">${escapeHtml(f.name)}</a></td>
+              <td class="num">${escapeHtml(f.size ?? (f.directory ? "folder" : ""))}</td>
+              <td class="muted">${escapeHtml(f.modified ?? "")}</td>
+              <td><button type="button" data-url="${escapeHtml(f.url)}">${f.directory ? "Open" : "Download"}</button></td></tr>`,
+          )
+          .join("");
+      }
+
+      function renderHeader() {
+        $("title").innerHTML = `<span class="acc">${escapeHtml(data.accession)}</span>${escapeHtml(data.title)}`;
+        const link = (url, text) => `<a data-url="${escapeHtml(url)}">${escapeHtml(text)}</a>`;
+        const items = [
+          ["Organism", escapeHtml(data.organism)],
+          ["Type", escapeHtml(data.types.join(", "))],
+          [
+            data.platforms.length > 1 ? "Platforms" : "Platform",
+            data.platforms
+              .map(
+                (p) =>
+                  link(geoUrl(p.accession), p.accession) +
+                  (p.title ? ` <span class="muted">${escapeHtml(p.title)}</span>` : ""),
+              )
+              .join(", "),
+          ],
+          ["Public", escapeHtml(data.public)],
+          ["Submitted", escapeHtml(data.submitted)],
+          ["Updated", escapeHtml(data.updated)],
+          [
+            "BioProject",
+            data.bioproject && link(`https://www.ncbi.nlm.nih.gov/bioproject/${data.bioproject}`, data.bioproject),
+          ],
+          ["SubSeries", data.subseries.map((acc) => link(geoUrl(acc), acc)).join(", ")],
+          ["Part of", data.superseries.map((acc) => link(geoUrl(acc), acc)).join(", ")],
+          ["PubMed", data.pubmed.map((id) => link(`https://pubmed.ncbi.nlm.nih.gov/${id}/`, id)).join(", ")],
+          ["Contributors", escapeHtml(data.contributors.join(", "))],
+        ];
+        $("meta").innerHTML = items
+          .filter(([, v]) => v)
+          .map(([k, v]) => `<span><b>${k}</b>${v}</span>`)
+          .join("");
+        $("summary").innerHTML = `<b>Summary.</b> ${escapeHtml(data.summary)}`;
+        $("design").innerHTML = data.design ? `<b>Overall design.</b> ${escapeHtml(data.design)}` : "";
+        $("design").hidden = !data.design;
+        // "Show more" only when the clamped text overflows
+        requestAnimationFrame(() => {
+          $("more").hidden = ![$("summary"), $("design")].some((e) => e.scrollHeight > e.clientHeight + 2);
+        });
+        $("samples-note").hidden = !data.samples_note;
+        $("samples-note").textContent = data.samples_note ?? "";
+      }
+
+      /** Selected samples, told to the model with the next message */
+      function selectionChanged() {
+        const list = data.samples.filter((s) => selected.has(s.accession));
+        $("count").textContent = list.length ? `${list.length} selected` : "No selection";
+        $("send").disabled = !list.length;
+        const describe = (s) =>
+          `${s.accession} (${[s.title, ...Object.entries(s.characteristics).map(([k, v]) => `${k}: ${v}`)].join("; ")})`;
+        void mcpApp.context(
+          list.length
+            ? `The user selected ${list.length} sample${list.length > 1 ? "s" : ""} of GEO Series ${data.accession}: ${list.map(describe).join(", ")}`
+            : `The user has not selected samples of GEO Series ${data.accession}`,
+        );
+      }
+
+      document.body.addEventListener("click", (e) => {
+        const link = e.target.closest("[data-url]");
+        if (link) return void mcpApp.openLink(link.dataset.url);
+      });
+      $("samples").addEventListener("click", (e) => {
+        const tr = e.target.closest("tr[data-acc]");
+        if (!tr || e.target.closest("[data-url]")) return;
+        const acc = tr.dataset.acc;
+        selected.has(acc) ? selected.delete(acc) : selected.add(acc);
+        tr.classList.toggle("selected", selected.has(acc));
+        tr.querySelector("input").checked = selected.has(acc);
+        $("all").checked = JSON.parse($("all").dataset.shown).every((a) => selected.has(a));
+        selectionChanged();
+      });
+      $("head").addEventListener("click", (e) => {
+        if (e.target.id === "all") {
+          for (const acc of JSON.parse(e.target.dataset.shown ?? "[]"))
+            e.target.checked ? selected.add(acc) : selected.delete(acc);
+          renderSamples();
+          return selectionChanged();
+        }
+        const th = e.target.closest("th");
+        if (!th) return;
+        sort = { col: th.dataset.col, dir: sort.col === th.dataset.col ? -sort.dir : 1 };
+        for (const h of document.querySelectorAll("#head th")) delete h.dataset.dir;
+        th.dataset.dir = sort.dir > 0 ? "asc" : "desc";
+        renderSamples();
+      });
+      $("filter").oninput = renderSamples;
+      $("more").onclick = () => {
+        const clamped = $("summary").classList.toggle("clamp");
+        $("design").classList.toggle("clamp", clamped);
+        $("more").textContent = clamped ? "Show more" : "Show less";
+      };
+      $("send").onclick = () => {
+        const list = data.samples.filter((s) => selected.has(s.accession));
+        const prompt = $("prompt").value.trim() || `Compare these samples of ${data.accession}`;
+        void mcpApp.message(`${prompt}: ${list.map((s) => `${s.accession} (${s.title})`).join(", ")}`);
+        $("prompt").value = "";
+      };
+      // Block body: a handler returning false would cancel every key typed
+      $("prompt").onkeydown = (e) => {
+        if (e.key === "Enter" && !$("send").disabled) $("send").click();
+      };
+      $("geo").onclick = () => data && mcpApp.openLink(data.url);
+      $("fullscreen").onclick = () =>
+        mcpApp.displayMode(document.documentElement.dataset.mode === "fullscreen" ? "inline" : "fullscreen");
+      mcpApp.on("hostContext", (ctx) => {
+        $("fullscreen").textContent = ctx.displayMode === "fullscreen" ? "Exit full screen" : "Full screen";
+      });
+
+      mcpApp.on("result", (result) => {
+        data = result.structuredContent;
+        if (!data) return ($("title").textContent = "No series");
+        renderHeader();
+        buildColumns();
+        renderSamples();
+        renderFiles();
+      });
+      mcpApp.start("GEO series explorer");
+    </script>
+  </body>
+</html>

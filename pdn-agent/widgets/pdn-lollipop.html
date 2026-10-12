@@ -1,0 +1,463 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="common.css" />
+    <style>
+      /* Long filters stay on one line, in full on hover */
+      #subtitle {
+        flex: 1 1 0;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      /* Categorical palette, light and dark steps of the same hues */
+      :root {
+        --s1: #2a78d6;
+        --s2: #eb6834;
+        --s3: #1baf7a;
+        --s4: #eda100;
+        --s5: #e87ba4;
+        --s6: #008300;
+        --s7: #4a3aa7;
+        --other: #9a9893;
+        --grid: #e1e0d9;
+        --axis: #c3c2b7;
+      }
+      :root[data-theme="dark"] {
+        --s1: #3987e5;
+        --s2: #d95926;
+        --s3: #199e70;
+        --s4: #c98500;
+        --s5: #d55181;
+        --s6: #008300;
+        --s7: #9085e9;
+        --other: #6f6e69;
+        --grid: #2c2c2a;
+        --axis: #383835;
+      }
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 14px;
+        align-items: center;
+        margin-bottom: 6px;
+        font-size: 12px;
+      }
+      .toolbar label {
+        display: flex;
+        gap: 5px;
+        align-items: center;
+        color: var(--muted);
+      }
+      .toolbar input[type="range"] {
+        width: 120px;
+        padding: 0;
+      }
+      #minValue {
+        min-width: 36px;
+        font-variant-numeric: tabular-nums;
+        color: var(--fg);
+      }
+      #chart {
+        position: relative;
+      }
+      svg {
+        display: block;
+        font-size: 10px;
+        font-variant-numeric: tabular-nums;
+      }
+      svg text {
+        fill: var(--muted);
+      }
+      svg .mlabel {
+        fill: var(--fg);
+      }
+      svg .region {
+        cursor: pointer;
+      }
+      svg .region text {
+        fill: var(--fg);
+        font-size: 11px;
+        font-weight: 500;
+      }
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 12px;
+        font-size: 12px;
+        margin-top: 4px;
+      }
+      .legend span {
+        display: flex;
+        gap: 5px;
+        align-items: center;
+        cursor: pointer;
+      }
+      .legend i {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+      }
+      .legend i.hollow {
+        background: none !important;
+        border: 2px solid var(--muted);
+      }
+      .legend small {
+        color: var(--muted);
+      }
+      .tip {
+        position: absolute;
+        pointer-events: none;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 5px 9px;
+        font-size: 12px;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+        white-space: nowrap;
+        display: none;
+        z-index: 2;
+      }
+      .warn {
+        font-size: 12px;
+        margin-top: 4px;
+      }
+      .details {
+        margin-top: 8px;
+        padding: 8px 10px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        min-height: 38px;
+      }
+      .details .actions {
+        display: flex;
+        gap: 6px;
+        margin-top: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1 id="title">Loading mutations</h1>
+      <span class="muted" id="subtitle"></span>
+      <button type="button" id="fullscreen">Full screen</button>
+    </header>
+    <div class="toolbar">
+      <select id="region" aria-label="Gene or segment"></select>
+      <label
+        >Min. proportion <input id="min" type="range" min="0" max="1" step="0.01" /><span id="minValue"></span
+      ></label>
+      <label><input id="labels" type="checkbox" checked /> Labels</label>
+    </div>
+    <div id="chart"><div class="tip" id="tip"></div></div>
+    <div class="legend" id="legend"></div>
+    <div class="warn muted" id="warn" hidden></div>
+    <div class="details muted" id="details">
+      Hover a mutation for its frequency, click it for details, click a gene to zoom
+    </div>
+
+    <script src="colors.js"></script>
+    <script src="bridge.js"></script>
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const NS = "http://www.w3.org/2000/svg";
+      const MAX_LABELS = 60;
+      let data;
+      let colors = {};
+      let selected = null;
+      let heads = [];
+      let layout = null;
+
+      const pct = (p) => `${(p * 100).toFixed(p < 0.001 ? 2 : 1)}%`;
+      const num = (n) => n.toLocaleString("en-US");
+      const isDeletion = (m) => m.mutation.endsWith("-");
+      /** Mutation name without the gene or segment, e.g. N501Y */
+      const short = (m) => m.mutation.split(":").at(-1);
+      const filtersText = () =>
+        Object.entries(data.filters)
+          .filter(([k]) => k !== "versionStatus" && k !== "isRevocation")
+          .map(([k, v]) => `${k}=${Array.isArray(v) ? v.join("|") : v}`)
+          .join(", ");
+      const kind = () => (data.sequence_type === "amino_acid" ? "gene" : "segment");
+
+      function el(tag, attrs, parent) {
+        const e = document.createElementNS(NS, tag);
+        for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+        parent?.appendChild(e);
+        return e;
+      }
+
+      /** Round tick step for a span, e.g. 100, 200, 500 */
+      function tickStep(span, count) {
+        const raw = span / count;
+        const p = 10 ** Math.floor(Math.log10(raw));
+        return [1, 2, 5, 10].map((k) => k * p).find((s) => s >= raw);
+      }
+
+      /** Colors of the genes with the most mutations, in a fixed order, the others share a neutral color */
+      function assignColors() {
+        const counts = {};
+        for (const m of data.mutations) counts[m.region] = (counts[m.region] ?? 0) + 1;
+        const ranked = data.regions.map((r) => r.name).sort((a, b) => (counts[b] ?? 0) - (counts[a] ?? 0));
+        colors = {};
+        ranked.forEach((name, i) => (colors[name] = i < 7 && counts[name] ? `var(--s${i + 1})` : "var(--other)"));
+        return { counts, ranked };
+      }
+
+      function render() {
+        const box = $("chart");
+        box.querySelector("svg")?.remove();
+        const W = Math.max(320, box.clientWidth);
+        const full = document.documentElement.dataset.mode === "fullscreen";
+        const H = full ? Math.max(380, innerHeight - 220) : 360;
+        const labels = $("labels").checked;
+        const m = { top: labels ? 66 : 14, right: 14, bottom: 46, left: 44 };
+        const plotH = H - m.top - m.bottom;
+        const min = Number($("min").value);
+        const zoom = $("region").value;
+        const regions = zoom ? data.regions.filter((r) => r.name === zoom) : data.regions;
+        const counts = {};
+        for (const mu of data.mutations) if (mu.proportion >= min) counts[mu.region] = (counts[mu.region] ?? 0) + 1;
+
+        // Regions side by side, widths by length, with a small gap
+        const gap = regions.length > 40 ? 0.5 : 3;
+        const totalLen = regions.reduce((s, r) => s + r.length, 0);
+        const scale = (W - m.left - m.right - gap * (regions.length - 1)) / totalLen;
+        const start = {};
+        let cursor = m.left;
+        for (const r of regions) {
+          start[r.name] = cursor;
+          cursor += r.length * scale + gap;
+        }
+        const x = (mu) => start[mu.region] + (mu.position - 0.5) * scale;
+        const y = (p) => m.top + plotH * (1 - p);
+        const svg = el("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}` });
+        box.prepend(svg);
+
+        // Grid and y axis
+        for (const t of [0, 0.25, 0.5, 0.75, 1]) {
+          el(
+            "line",
+            { x1: m.left, x2: W - m.right, y1: y(t), y2: y(t), stroke: t ? "var(--grid)" : "var(--axis)" },
+            svg,
+          );
+          el("text", { x: m.left - 6, y: y(t) + 3, "text-anchor": "end" }, svg).textContent = `${t * 100}%`;
+        }
+
+        // Region track below the baseline, labels where they fit, click to zoom
+        const trackY = y(0) + 6;
+        for (const r of regions) {
+          const g = el("g", { class: "region", "data-region": r.name }, svg);
+          const w = Math.max(r.length * scale, 0.5);
+          el(
+            "rect",
+            {
+              x: start[r.name],
+              y: trackY,
+              width: w,
+              height: 16,
+              rx: 3,
+              fill: colors[r.name],
+              "fill-opacity": counts[r.name] ? 0.3 : 0.12,
+            },
+            g,
+          );
+          el("title", {}, g).textContent =
+            `${r.name} · ${num(r.length)} ${data.sequence_type === "amino_acid" ? "aa" : "nt"}${zoom ? "" : " · click to zoom"}`;
+          if (w > r.name.length * 7 + 6)
+            el("text", { x: start[r.name] + w / 2, y: trackY + 12, "text-anchor": "middle" }, g).textContent = r.name;
+        }
+        // Position axis of a single region
+        if (regions.length === 1) {
+          const r = regions[0];
+          const s = tickStep(r.length, Math.max(2, Math.floor((W - m.left - m.right) / 70)));
+          for (let p = s; p <= r.length; p += s)
+            el(
+              "text",
+              { x: start[r.name] + (p - 0.5) * scale, y: trackY + 32, "text-anchor": "middle" },
+              svg,
+            ).textContent = num(p);
+        }
+
+        // Lollipops, the most frequent drawn last so they stay on top
+        const shown = data.mutations
+          .filter((mu) => mu.proportion >= min && start[mu.region] !== undefined)
+          .sort((a, b) => a.proportion - b.proportion);
+        heads = shown.map((mu) => ({ mu, x: x(mu), y: y(mu.proportion) }));
+        for (const h of heads) {
+          const c = colors[h.mu.region];
+          const sel = selected === h.mu;
+          el(
+            "line",
+            { x1: h.x, x2: h.x, y1: y(0), y2: h.y, stroke: c, "stroke-width": sel ? 2 : 1, "stroke-opacity": 0.7 },
+            svg,
+          );
+          el(
+            "circle",
+            {
+              cx: h.x,
+              cy: h.y,
+              r: sel ? 6 : 4,
+              fill: isDeletion(h.mu) ? "var(--bg)" : c,
+              stroke: isDeletion(h.mu) ? c : "var(--bg)",
+              "stroke-width": isDeletion(h.mu) ? 2 : 1,
+            },
+            svg,
+          );
+        }
+
+        // Labels above the heads of the most frequent mutations, where they do not overlap, without the gene shown by
+        // the color
+        if (labels) {
+          const placed = [];
+          for (const h of [...heads].reverse()) {
+            if (placed.length >= MAX_LABELS) break;
+            if (placed.some((p) => Math.abs(p.x - h.x) < 11)) continue;
+            placed.push(h);
+            const t = el("text", { class: "mlabel", transform: `translate(${h.x + 3.5},${h.y - 8}) rotate(-90)` }, svg);
+            t.textContent = short(h.mu);
+          }
+        }
+        layout = { m, W, H };
+      }
+
+      /** Mutation head nearest to the pointer, within 14 px */
+      function headAt(e) {
+        const r = $("chart").getBoundingClientRect();
+        const px = e.clientX - r.left;
+        const py = e.clientY - r.top;
+        let best = null;
+        let dist = 14 ** 2;
+        for (const h of heads) {
+          // The stick counts as well as the head
+          const dy = py > h.y && py < layout.H - layout.m.bottom ? 0 : py - h.y;
+          const d = (px - h.x) ** 2 + dy ** 2;
+          if (d <= dist) [best, dist] = [h, d];
+        }
+        return best;
+      }
+
+      function showTip(e) {
+        const h = headAt(e);
+        const tip = $("tip");
+        const region = e.target.closest?.(".region");
+        if (!h && !region) return (tip.style.display = "none");
+        if (h) {
+          const mu = h.mu;
+          tip.innerHTML = `<b>${escapeHtml(mu.mutation)}</b>${isDeletion(mu) ? ' <span class="muted">deletion</span>' : ""}<br>
+            ${pct(mu.proportion)} <span class="muted">· ${num(mu.count)} of ${num(mu.coverage)} covering sequences</span><br>
+            <span class="muted">${escapeHtml(mu.region)} position ${num(mu.position)}</span>`;
+        } else {
+          const name = region.dataset.region;
+          const n = data.mutations.filter((mu) => mu.region === name && mu.proportion >= Number($("min").value)).length;
+          tip.innerHTML = `<b>${escapeHtml(name)}</b><br><span class="muted">${n} mutations shown${$("region").value ? "" : " · click to zoom"}</span>`;
+        }
+        tip.style.display = "block";
+        const r = $("chart").getBoundingClientRect();
+        const x = e.clientX - r.left + 14;
+        tip.style.left = `${x + tip.offsetWidth > r.width ? x - tip.offsetWidth - 28 : x}px`;
+        tip.style.top = `${Math.max(0, e.clientY - r.top - tip.offsetHeight - 8)}px`;
+        $("chart").style.cursor = "pointer";
+      }
+
+      /** Details of a mutation, also told to the model */
+      function select(mu) {
+        selected = mu;
+        render();
+        const where = filtersText();
+        const context = `${data.organism} sequences${where ? ` with ${where}` : ""}`;
+        $("details").classList.remove("muted");
+        $("details").innerHTML =
+          `<div><b>${escapeHtml(mu.mutation)}</b> in ${pct(mu.proportion)} of the sequences covering it
+            <span class="muted">· ${num(mu.count)} of ${num(mu.coverage)} · ${escapeHtml(mu.region)} position ${num(mu.position)}${isDeletion(mu) ? " · deletion" : ""}</span></div>
+          <div class="actions"><button type="button" id="ask">Ask about it</button><button type="button" id="time">Show over time</button></div>`;
+        $("ask").onclick = () =>
+          mcpApp.message(
+            `What is known about the ${data.organism} mutation ${mu.mutation}, found in ${pct(mu.proportion)} of the ${context}?`,
+          );
+        $("time").onclick = () =>
+          mcpApp.message(`Show the frequency of ${mu.mutation} over time in ${context}, over the last two years.`);
+        void mcpApp.context(
+          `The user selected the mutation ${mu.mutation} in the lollipop plot of ${context}: ${mu.count} of ` +
+            `${mu.coverage} covering sequences (${pct(mu.proportion)})`,
+        );
+      }
+
+      function renderLegend(counts, ranked) {
+        const items = ranked
+          .filter((name) => counts[name] && colors[name] !== "var(--other)")
+          .map(
+            (name) =>
+              `<span data-region="${escapeHtml(name)}"><i style="background:${colors[name]}"></i>${escapeHtml(name)} <small>${counts[name]}</small></span>`,
+          );
+        const others = ranked.filter((name) => counts[name] && colors[name] === "var(--other)");
+        if (others.length)
+          items.push(
+            `<span title="${escapeHtml(others.join(", "))}"><i style="background:var(--other)"></i>${others.length} other ${kind()}s <small>${others.reduce((s, n) => s + counts[n], 0)}</small></span>`,
+          );
+        items.push('<span><i class="hollow"></i>deletion</span>');
+        $("legend").innerHTML = items.join("");
+      }
+
+      const zoomTo = (name) => {
+        $("region").value = name;
+        render();
+      };
+      $("chart").addEventListener("mousemove", (e) => layout && showTip(e));
+      $("chart").addEventListener("mouseleave", () => ($("tip").style.display = "none"));
+      $("chart").addEventListener("click", (e) => {
+        const h = layout && headAt(e);
+        if (h) return select(h.mu);
+        const region = e.target.closest?.(".region");
+        if (region && !$("region").value) zoomTo(region.dataset.region);
+      });
+      $("legend").addEventListener("click", (e) => {
+        const span = e.target.closest("[data-region]");
+        if (span) zoomTo(span.dataset.region);
+      });
+      $("region").onchange = render;
+      $("labels").onchange = render;
+      $("min").oninput = () => {
+        $("minValue").textContent = pct(Number($("min").value));
+        render();
+      };
+      $("fullscreen").onclick = () =>
+        mcpApp.displayMode(document.documentElement.dataset.mode === "fullscreen" ? "inline" : "fullscreen");
+      mcpApp.on("hostContext", (ctx) => {
+        $("fullscreen").textContent = ctx.displayMode === "fullscreen" ? "Exit full screen" : "Full screen";
+        if (data) render();
+      });
+      new ResizeObserver(() => data && render()).observe($("chart"));
+
+      mcpApp.on("result", (result) => {
+        data = result.structuredContent;
+        if (!data?.mutations) return ($("title").textContent = "No data");
+        const type = data.sequence_type === "amino_acid" ? "amino acid" : "nucleotide";
+        const along =
+          data.regions.length === 1 && kind() === "gene" ? `in ${data.regions[0].name}` : "along the genome";
+        $("title").textContent = `${data.mutations.length}${data.truncated ? "+" : ""} ${type} mutations ${along}`;
+        const where = filtersText();
+        $("subtitle").title = $("subtitle").textContent =
+          `${data.organism} · ${data.database} · ${num(data.total)} sequences${where ? ` · ${where}` : ""}`;
+        const { counts, ranked } = assignColors();
+        $("region").innerHTML =
+          (data.regions.length > 1 ? `<option value="">All ${kind()}s (${data.mutations.length})</option>` : "") +
+          data.regions
+            .map((r) => `<option value="${escapeHtml(r.name)}">${escapeHtml(r.name)} (${counts[r.name] ?? 0})</option>`)
+            .join("");
+        $("min").min = data.min_proportion;
+        $("min").value = data.min_proportion;
+        $("minValue").textContent = pct(data.min_proportion);
+        renderLegend(counts, ranked);
+        $("warn").hidden = !data.truncated;
+        $("warn").textContent =
+          `Only the ${data.mutations.length} most frequent mutations are shown, ties at the cut are kept arbitrarily: pick one ${kind()} or a higher minimum proportion to see them all.`;
+        render();
+      });
+      mcpApp.start("LAPIS mutation lollipop");
+    </script>
+  </body>
+</html>

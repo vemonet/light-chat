@@ -34,14 +34,16 @@ from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import Field
 
 from . import coverage, databases, parsing, pathogens
+from .apps import apps
 from .databases import DATABASES, RUNINFO_OPEN_ACCESS_EMPTY
 from .envelope import NCBIError, envelope, provenance
-from .eutils import MAX_ESUMMARY_UIDS, EUtilsClient, Timer, TransportError
-from .pathogens import PathogensClient
+from .eutils import MAX_ESUMMARY_UIDS, Timer, TransportError
+from .shared import client, pathogen_client, pathogen_filter  # one client per service, sharing one rate limiter
 
 server = MCPServer(
     name="NCBI MCP",
     dependencies=["mcp", "httpx2"],
+    extensions=[apps],
     instructions=(
         "Two NCBI services.\n\n"
         "E-utilities: sequencing runs (SRA), samples (BioSample), projects "
@@ -80,14 +82,6 @@ server = MCPServer(
         "result as complete."
     ),
 )
-
-client = EUtilsClient()
-
-# A second service, deliberately sharing the first one's limiter. NCBI's rate
-# limit is per IP address and applies across its services, so two independently
-# paced clients in one process would each believe they had the whole 3/sec
-# budget and together spend six.
-pathogen_client = PathogensClient(client.limiter, client.email)
 
 # Caps chosen from measured payload sizes, not guessed. Exceeding them produces
 # a ToolError naming the smaller alternative rather than a 30 MB tool result.
@@ -1282,27 +1276,6 @@ async def ncbi_entrez_raw(
 # --------------------------------------------------------------------------
 
 
-def _pathogen_filter(
-    organism: str | None,
-    amr_genes: str | list[str] | None,
-    host: str | None,
-    isolation_source: str | None,
-    epi_type: str | None,
-) -> tuple[str | None, dict[str, list[str]]]:
-    clauses: dict[str, list[str]] = {}
-    if organism:
-        clauses["taxgroup_name"] = [organism]
-    if amr_genes:
-        clauses["AMR_genotypes"] = _split_ids(amr_genes)
-    if host:
-        clauses["host"] = [host]
-    if isolation_source:
-        clauses["isolation_source"] = [isolation_source]
-    if epi_type:
-        clauses["epi_type"] = [epi_type]
-    return pathogens.build_fq(clauses), clauses
-
-
 @server.tool()
 async def ncbi_pathogen_isolate_count(
     organism: Annotated[
@@ -1341,7 +1314,7 @@ async def ncbi_pathogen_isolate_count(
     """
 
     async def body():
-        fq, clauses = _pathogen_filter(organism, amr_genes, host, isolation_source, epi_type)
+        fq, clauses = pathogen_filter(organism, amr_genes, host, isolation_source, epi_type)
         ngout = await pathogen_client.retrieve(pathogens.count_params(fq))
 
         isolates = pathogens.distinct_count(ngout)
@@ -1436,7 +1409,7 @@ async def ncbi_pathogen_isolates(
     """
 
     async def body():
-        fq, clauses = _pathogen_filter(organism, amr_genes, host, isolation_source, epi_type)
+        fq, clauses = pathogen_filter(organism, amr_genes, host, isolation_source, epi_type)
         # record_params over-fetches 2x (the index stores every isolate twice)
         # and refuses to carry a facet, which would empty `content` outright.
         ngout = await pathogen_client.retrieve(
@@ -1509,7 +1482,7 @@ async def ncbi_pathogen_amr_genes(
     """
 
     async def body():
-        fq, _ = _pathogen_filter(organism, None, None, None, None)
+        fq, _ = pathogen_filter(organism, None, None, None, None)
         ngout = await pathogen_client.retrieve({"limit": 0, "facets": "AMR_genotypes[||1|20000]", "fq": fq})
         buckets = pathogens.facet_buckets(ngout, "AMR_genotypes")
 

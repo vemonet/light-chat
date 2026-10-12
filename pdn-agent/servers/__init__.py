@@ -2,7 +2,7 @@
 
 from mcp.server.mcpserver import MCPServer
 
-from . import brc_analytics, geo, mygene, myvariant, pdn, pubmed, uniprot
+from . import brc_analytics, geo, mygene, myvariant, pdn, pubmed, string, uniprot
 from .ncbi import server as ncbi
 from .nde import server as nde
 
@@ -16,4 +16,5 @@ MCP_SERVERS: dict[str, MCPServer] = {
     "nde": nde.mcp,
     "geo": geo.mcp,
     "brc-analytics": brc_analytics.mcp,
+    "string": string.mcp,
 }

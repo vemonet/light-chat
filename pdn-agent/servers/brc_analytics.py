@@ -28,6 +28,8 @@ import requests
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
+from .brc_apps import apps
+
 mcp = MCPServer(
     name="BRC Analytics MCP",
     dependencies=["mcp", "requests"],
@@ -37,8 +39,10 @@ mcp = MCPServer(
         "tools (search_organisms, get_assemblies, check_compatibility, ...) for the "
         "genome catalog and workflow compatibility. Use these tools for raw "
         "sequencing runs in ENA: real totals, paging past 50 results, keyword "
-        "search, and study lookup."
+        "search, and study lookup. show_brc_workflow_matrix shows the user which "
+        "workflows can run on which assemblies of an organism."
     ),
+    extensions=[apps],
 )
 
 BRC_API = "https://brc-analytics.org/api/v1"

@@ -2,25 +2,22 @@
 variant explorer and annotation matrix.
 
 The widget gets the full data in `structuredContent`, the model only gets a text summary.
-Widgets are in `../widgets/`, local scripts and stylesheets they reference are inlined when served.
 """
 
 import asyncio
 import re
 from collections import Counter
-from collections.abc import Mapping
-from pathlib import Path
 from typing import Any, TypedDict
 
 import httpx2
 from mcp.server.apps import Apps, ResourceCsp
-from mcp_types import CallToolResult, TextContent
+from mcp_types import CallToolResult
+
+from .apps_common import CDN, text_result, widget_html
 
 UNIPROT_API = "https://rest.uniprot.org/uniprotkb"
 ALPHAFOLD_API = "https://alphafold.ebi.ac.uk/api/prediction"
 PROTEINS_API = "https://www.ebi.ac.uk/proteins/api"
-WIDGETS = Path(__file__).parent.parent / "widgets"
-CDN = "https://cdn.jsdelivr.net"
 # UniProt queries not cached yet can take tens of seconds, and the API sometimes answers 503
 TIMEOUT = 60
 ATTEMPTS = 3
@@ -174,11 +171,6 @@ class MatrixData(TypedDict):
     terms: dict[str, Term]
     missing: list[str]
     """Genes without a reviewed entry"""
-
-
-def text_result(text: str, data: Mapping[str, Any]) -> CallToolResult:
-    """Summary for the model, full data for the widget"""
-    return CallToolResult(content=[TextContent(type="text", text=text)], structured_content=dict(data))
 
 
 def http_client() -> httpx2.AsyncClient:
@@ -603,19 +595,6 @@ async def show_annotation_matrix(genes: list[str], organism_id: int = 9606) -> C
         lines.append(f"Most shared, {kind}: {top or 'none'}")
     lines.append("The user can switch annotation types and click terms or proteins to ask about them.")
     return text_result("\n".join(lines), MatrixData(organism=organism, proteins=proteins, terms=terms, missing=missing))
-
-
-def widget_html(name: str) -> str:
-    """Widget HTML with the local scripts and stylesheets it references inlined"""
-    html = (WIDGETS / name).read_text()
-    html = re.sub(
-        r'<script src="(\w+\.js)"></script>', lambda m: f"<script>\n{(WIDGETS / m[1]).read_text()}</script>", html
-    )
-    return re.sub(
-        r'<link rel="stylesheet" href="(\w+\.css)" />',
-        lambda m: f"<style>\n{(WIDGETS / m[1]).read_text()}</style>",
-        html,
-    )
 
 
 apps.add_html_resource(

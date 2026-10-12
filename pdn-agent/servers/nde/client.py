@@ -155,3 +155,14 @@ def _clean_params(params: dict[str, Any]) -> dict[str, Any]:
         else:
             out[key] = value
     return out
+
+
+_client: NDEClient | None = None
+
+
+def get_client() -> NDEClient:
+    """Client shared by the tools of `server.py` and `apps.py`, created on first use"""
+    global _client
+    if _client is None:
+        _client = NDEClient()
+    return _client

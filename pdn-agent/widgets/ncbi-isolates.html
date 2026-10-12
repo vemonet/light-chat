@@ -1,0 +1,423 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="common.css" />
+    <style>
+      .layout {
+        display: grid;
+        grid-template-columns: 180px minmax(0, 1fr);
+        gap: 12px;
+      }
+      @media (max-width: 600px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+        .facets {
+          max-height: 200px;
+        }
+      }
+      .filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin: -4px 0 10px;
+      }
+      .chip {
+        display: inline-block;
+        padding: 0 6px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: var(--panel);
+        font-size: 11px;
+        line-height: 17px;
+        white-space: nowrap;
+      }
+      .chip.hit {
+        border-color: var(--accent);
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .facets {
+        font-size: 12px;
+        max-height: 450px;
+        overflow-y: auto;
+      }
+      .facets h2 {
+        display: flex;
+        font-size: 12px;
+        margin: 10px 0 4px;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .facets h2:first-child {
+        margin-top: 0;
+      }
+      .facets h2 a {
+        margin-left: auto;
+        font-weight: 400;
+      }
+      .facets label {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        padding: 1px 0;
+        cursor: pointer;
+      }
+      .facets label span:first-of-type {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .facets .more {
+        font-size: 11px;
+      }
+      .toolbar {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 6px;
+      }
+      .toolbar input {
+        flex: 1;
+        min-width: 0;
+      }
+      .scroll {
+        max-height: 420px;
+        overflow: auto;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+      }
+      :root[data-mode="fullscreen"] .scroll,
+      :root[data-mode="fullscreen"] .facets {
+        max-height: calc(100vh - 170px);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+      th,
+      td {
+        padding: 4px 8px;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+        white-space: nowrap;
+        vertical-align: top;
+      }
+      td.wrap {
+        white-space: normal;
+        min-width: 80px;
+        max-width: 160px;
+        overflow-wrap: anywhere;
+      }
+      td.genes {
+        white-space: normal;
+        min-width: 170px;
+      }
+      .sub {
+        font-size: 11px;
+      }
+      td.genes .chip {
+        margin: 0 2px 2px 0;
+      }
+      th {
+        position: sticky;
+        top: 0;
+        background: var(--panel);
+        cursor: pointer;
+        user-select: none;
+        z-index: 1;
+      }
+      th[data-dir="asc"]::after {
+        content: " \25B2";
+      }
+      th[data-dir="desc"]::after {
+        content: " \25BC";
+      }
+      tbody tr {
+        cursor: pointer;
+      }
+      tbody tr:hover,
+      tr.selected {
+        background: var(--hover);
+      }
+      .selection {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        margin-top: 8px;
+      }
+      .selection input {
+        flex: 1;
+        min-width: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1 id="title">Loading isolates</h1>
+      <span class="muted" id="subtitle"></span>
+      <span class="spacer"></span>
+      <button type="button" id="fullscreen">Full screen</button>
+    </header>
+    <div class="filters" id="filters"></div>
+    <div class="layout">
+      <div class="facets" id="facets"></div>
+      <div>
+        <div class="toolbar">
+          <input id="filter" type="search" placeholder="Filter by accession, strain, location, source, gene" />
+        </div>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th data-col="selected"><input type="checkbox" id="all" aria-label="Select all shown" /></th>
+                <th data-col="target">Isolate · BioSample</th>
+                <th data-col="strain">Strain · assembly</th>
+                <th data-col="date">Collected</th>
+                <th data-col="location">Location</th>
+                <th data-col="source">Source · host</th>
+                <th data-col="genes">AMR genes</th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="selection">
+      <span id="count" class="muted">No selection</span>
+      <input id="prompt" placeholder="Compare these isolates" />
+      <button type="button" class="primary" id="send" disabled>Send</button>
+    </div>
+
+    <script src="colors.js"></script>
+    <script src="bridge.js"></script>
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const URLS = {
+        target: (id) => `https://www.ncbi.nlm.nih.gov/pathogens/isolates/#${id}`,
+        biosample: (id) => `https://www.ncbi.nlm.nih.gov/biosample/${id}`,
+        assembly: (id) => `https://www.ncbi.nlm.nih.gov/datasets/genome/${id}/`,
+      };
+      // Genes shown in a row before "+n"
+      const MAX_CHIPS = 6;
+      let rows = [];
+      let data;
+      let wanted = new Set();
+      // Rows shown, selected by the header checkbox
+      let shownIds = [];
+      const selected = new Set();
+      // Facet values checked, none checked means no filter. Genes: isolates carrying all of them
+      const facets = { country: new Set(), year: new Set(), source: new Set(), genes: new Set() };
+      const FACETS = {
+        country: { title: "Country", limit: 12, value: (r) => (r.location ?? "").split(":")[0].trim() || "Unknown" },
+        year: {
+          title: "Collection year",
+          limit: 12,
+          value: (r) => (/^\d{4}/.test(r.date ?? "") ? r.date.slice(0, 4) : "Unknown"),
+        },
+        source: { title: "Isolation source", limit: 10, value: (r) => r.source || "Unknown" },
+        genes: { title: "AMR genes (all checked)", limit: 15, values: (r) => r.genes },
+      };
+      const expanded = new Set();
+      const valuesOf = (key, r) => FACETS[key].values?.(r) ?? [FACETS[key].value(r)];
+      const matches = (key, r) => {
+        const checked = facets[key];
+        if (!checked.size) return true;
+        const values = valuesOf(key, r);
+        return key === "genes" ? [...checked].every((v) => values.includes(v)) : values.some((v) => checked.has(v));
+      };
+      let sort = { col: null, dir: 1 };
+
+      const filtered = () => {
+        const text = $("filter").value.toLowerCase();
+        return rows.filter(
+          (r) =>
+            Object.keys(facets).every((k) => matches(k, r)) &&
+            (!text ||
+              [r.target, r.biosample, r.assembly, r.strain, r.location, r.source, r.host, ...r.genes]
+                .join(" ")
+                .toLowerCase()
+                .includes(text)),
+        );
+      };
+
+      /** Facet values with their counts among the rows matching the other facets */
+      function renderFacets() {
+        $("facets").innerHTML = "";
+        for (const [key, facet] of Object.entries(FACETS)) {
+          const others = rows.filter((r) => Object.keys(facets).every((k) => k === key || matches(k, r)));
+          const counts = new Map();
+          for (const r of others) for (const v of valuesOf(key, r)) counts.set(v, (counts.get(v) ?? 0) + 1);
+          const list = [...counts].sort((a, b) =>
+            key === "year"
+              ? (a[0] === "Unknown") - (b[0] === "Unknown") || b[0].localeCompare(a[0])
+              : b[1] - a[1] || a[0].localeCompare(b[0]),
+          );
+          // Checked values stay visible when the list is cut
+          const limit = expanded.has(key) ? list.length : facet.limit;
+          const shown = list.filter(([v], i) => i < limit || facets[key].has(v));
+          const clear = facets[key].size ? `<a data-clear="${key}">clear</a>` : "";
+          $("facets").insertAdjacentHTML("beforeend", `<h2>${facet.title}${clear}</h2>`);
+          for (const [value, n] of shown) {
+            const label = document.createElement("label");
+            label.title = value;
+            label.innerHTML = `<input type="checkbox" ${facets[key].has(value) ? "checked" : ""} />
+              <span>${escapeHtml(value)}</span><span class="muted">${n}</span>`;
+            label.querySelector("input").onchange = (e) => {
+              e.target.checked ? facets[key].add(value) : facets[key].delete(value);
+              render();
+            };
+            $("facets").append(label);
+          }
+          if (list.length > facet.limit)
+            $("facets").insertAdjacentHTML(
+              "beforeend",
+              `<a class="more" data-more="${key}">${expanded.has(key) ? "Show less" : `Show all ${list.length}`}</a>`,
+            );
+        }
+      }
+
+      const genesHtml = (genes) => {
+        // Genes of the query filter first, highlighted
+        const sorted = [...genes].sort((a, b) => wanted.has(b) - wanted.has(a));
+        const chips = sorted
+          .slice(0, MAX_CHIPS)
+          .map((g) => `<span class="chip ${wanted.has(g) ? "hit" : ""}">${escapeHtml(g)}</span>`);
+        if (genes.length > MAX_CHIPS)
+          chips.push(
+            `<span class="muted" title="${escapeHtml(sorted.slice(MAX_CHIPS).join(", "))}">+${genes.length - MAX_CHIPS}</span>`,
+          );
+        return chips.join("");
+      };
+
+      const link = (kind, id) => (id ? `<a data-url="${escapeHtml(URLS[kind](id))}">${escapeHtml(id)}</a>` : "");
+
+      function renderRows() {
+        let list = filtered();
+        if (sort.col) {
+          const key = (r) =>
+            sort.col === "selected"
+              ? +selected.has(r.target)
+              : sort.col === "genes"
+                ? r.genes.length
+                : (r[sort.col] ?? "");
+          list = [...list].sort((a, b) => {
+            const [x, y] = [key(a), key(b)];
+            return (typeof x === "string" ? x.localeCompare(y) : x - y) * sort.dir;
+          });
+        }
+        $("rows").innerHTML = list
+          .map(
+            (r) => `<tr class="${selected.has(r.target) ? "selected" : ""}" data-id="${escapeHtml(r.target)}">
+              <td><input type="checkbox" ${selected.has(r.target) ? "checked" : ""} aria-label="Select ${escapeHtml(r.target)}" /></td>
+              <td>${link("target", r.target)}<div class="sub">${link("biosample", r.biosample)}</div></td>
+              <td class="wrap">${escapeHtml(r.strain ?? "")}<div class="sub">${link("assembly", r.assembly)}</div></td>
+              <td>${escapeHtml(r.date ?? "")}</td>
+              <td class="wrap">${escapeHtml(r.location ?? "")}</td>
+              <td class="wrap">${escapeHtml(r.source ?? "")}<div class="sub muted">${escapeHtml(r.host ?? "")}</div></td>
+              <td class="genes">${genesHtml(r.genes)}</td></tr>`,
+          )
+          .join("");
+        const total = data.total == null ? "" : ` · ${data.total.toLocaleString()} isolates match`;
+        $("subtitle").textContent = `${list.length} of ${rows.length} most recently added shown${total}`;
+        $("all").checked = list.length > 0 && list.every((r) => selected.has(r.target));
+        shownIds = list.map((r) => r.target);
+      }
+
+      function render() {
+        renderFacets();
+        renderRows();
+      }
+
+      const describe = (r) =>
+        `${r.target} (BioSample ${r.biosample ?? "-"}, strain ${r.strain ?? "-"}, ${r.location ?? "-"}, ${r.date ?? "-"}, ` +
+        `${r.source ?? "-"}, AMR genes: ${r.genes.slice(0, 15).join(" ") || "none"}${r.genes.length > 15 ? " ..." : ""})`;
+
+      /** Selected rows, told to the model with the next message */
+      function selectionChanged() {
+        const list = rows.filter((r) => selected.has(r.target));
+        $("count").textContent = list.length ? `${list.length} selected` : "No selection";
+        $("send").disabled = !list.length;
+        const text = list.length
+          ? `The user selected ${list.length} ${data.organism} isolates in the Pathogen Detection table: ` +
+            list.map(describe).join("; ")
+          : "The user has not selected isolates in the Pathogen Detection table";
+        void mcpApp.context(text);
+      }
+
+      $("rows").addEventListener("click", (e) => {
+        const a = e.target.closest("a[data-url]");
+        if (a) return void mcpApp.openLink(a.dataset.url);
+        const tr = e.target.closest("tr");
+        if (!tr) return;
+        const id = tr.dataset.id;
+        selected.has(id) ? selected.delete(id) : selected.add(id);
+        tr.classList.toggle("selected", selected.has(id));
+        tr.querySelector("input").checked = selected.has(id);
+        selectionChanged();
+      });
+      $("facets").addEventListener("click", (e) => {
+        const { more, clear } = e.target.dataset ?? {};
+        if (more) expanded.has(more) ? expanded.delete(more) : expanded.add(more);
+        if (clear) facets[clear].clear();
+        if (more || clear) render();
+      });
+      $("all").onclick = (e) => {
+        e.stopPropagation();
+        for (const id of shownIds) e.target.checked ? selected.add(id) : selected.delete(id);
+        renderRows();
+        selectionChanged();
+      };
+      document.querySelector("thead").addEventListener("click", (e) => {
+        const th = e.target.closest("th");
+        if (!th || e.target.id === "all") return;
+        sort = { col: th.dataset.col, dir: sort.col === th.dataset.col ? -sort.dir : 1 };
+        for (const h of document.querySelectorAll("th")) delete h.dataset.dir;
+        th.dataset.dir = sort.dir > 0 ? "asc" : "desc";
+        renderRows();
+      });
+      $("filter").oninput = renderRows;
+      $("send").onclick = () => {
+        const list = rows.filter((r) => selected.has(r.target));
+        const prompt = $("prompt").value.trim() || "Compare these isolates";
+        const ids = list.map((r) => `${r.target} (${r.biosample ?? r.strain ?? ""})`);
+        void mcpApp.message(`${prompt}: ${data.organism} isolates ${ids.join(", ")}`);
+        $("prompt").value = "";
+      };
+      // Block body: a handler returning false would cancel every key typed
+      $("prompt").onkeydown = (e) => {
+        if (e.key === "Enter" && !$("send").disabled) $("send").click();
+      };
+      $("fullscreen").onclick = () =>
+        mcpApp.displayMode(document.documentElement.dataset.mode === "fullscreen" ? "inline" : "fullscreen");
+      mcpApp.on("hostContext", (ctx) => {
+        $("fullscreen").textContent = ctx.displayMode === "fullscreen" ? "Exit full screen" : "Full screen";
+      });
+
+      mcpApp.on("result", (result) => {
+        data = result.structuredContent;
+        if (!data) return ($("title").textContent = "No isolates");
+        rows = data.rows;
+        wanted = new Set((data.filters.AMR_genotypes ?? "").split(", ").filter(Boolean));
+        $("title").textContent = `${data.organism} isolates`;
+        const labels = {
+          geo_loc_name: "country",
+          collection_year: "collected",
+          AMR_genotypes: "genes",
+          epi_type: "type",
+        };
+        $("filters").innerHTML = Object.entries(data.filters)
+          .filter(([k]) => k !== "taxgroup_name")
+          .map(
+            ([k, v]) => `<span class="chip">${escapeHtml(labels[k] ?? k.replace("_", " "))}: ${escapeHtml(v)}</span>`,
+          )
+          .join("");
+        render();
+      });
+      mcpApp.start("Pathogen Detection isolates");
+    </script>
+  </body>
+</html>

@@ -18,7 +18,8 @@ from typing import Any
 from mcp.server.mcpserver import MCPServer
 from mcp_types import ToolAnnotations
 
-from .client import NDEClient, NDEError
+from .apps import apps
+from .client import NDEError, get_client
 from .format import (
     clean_detail,
     describe_sources,
@@ -43,6 +44,7 @@ from .query import (
 
 mcp = MCPServer(
     "nde",
+    extensions=[apps],
     instructions=(
         "Search the NIAID Data Ecosystem Discovery Portal: ~14M federated metadata "
         "records for biomedical datasets, samples, computational tools, and resource "
@@ -67,15 +69,6 @@ READ_ONLY = ToolAnnotations(readOnlyHint=True, openWorldHint=True)
 
 # Cap on the probe requests the zero-result diagnostic will issue.
 MAX_DIAGNOSTIC_PROBES = 8
-
-_client: NDEClient | None = None
-
-
-def get_client() -> NDEClient:
-    global _client
-    if _client is None:
-        _client = NDEClient()
-    return _client
 
 
 def _api_call_url(params: dict[str, Any]) -> str:

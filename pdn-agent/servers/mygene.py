@@ -14,6 +14,8 @@ import requests
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
+from .mygene_apps import apps
+
 mcp = MCPServer(
     name="MyGene MCP",
     dependencies=["mcp", "requests"],
@@ -22,6 +24,7 @@ mcp = MCPServer(
         "position, Gene Ontology terms, pathways, orthologs, and cross-references "
         "to Entrez, Ensembl, RefSeq, UniProt and HGNC"
     ),
+    extensions=[apps],
 )
 
 
