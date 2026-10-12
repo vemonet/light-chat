@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from light_chat import chat_router, setup_logging
 from light_chat.mcp_apps import PROXIED_REQUEST, UIToolset, proxied_response
 from mcp.server.mcpserver import MCPServer
+from mcp.server.transport_security import TransportSecuritySettings
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 
@@ -17,10 +18,14 @@ from uniprot_apps import UNIPROT_API, apps, fetch_entry, get, http_client
 setup_logging()
 
 # OpenAI-compatible endpoint, read by the OpenAI provider, with its tool calling models (the first is the default)
-os.environ.setdefault("OPENAI_BASE_URL", "https://llm.ai.egi.eu/v1")
-MODELS = os.getenv("MODELS", "qwen3.8-27b,glm-5.3,kimi-k3,gpt-oss-120b").split(",")
+os.environ.setdefault("OPENAI_BASE_URL", "https://openrouter.ai/api/v1")
+MODELS = os.getenv(
+    "MODELS", "deepseek/deepseek-v4.1-flash,mistralai/mistral-large-4-0,anthropic/claude-haiku-5.5,openai/gpt-6-luna"
+).split(",")
 # UniProt MCP server used by the agent: the one of this app, called in-process, unless an URL is set
 MCP_URL = os.getenv("MCP_URL")
+# Public hostnames of the app behind a reverse proxy (e.g. `chat.example.org`), accepted by `/mcp` besides localhost
+ALLOWED_HOSTS = [h.strip() for h in os.getenv("ALLOWED_HOSTS", "").split(",") if h.strip()]
 
 # MCP server with UniProt tools, and tools showing widgets (MCP Apps) from `uniprot_apps.py`
 mcp = MCPServer("uniprot", instructions="Query the UniProt protein knowledgebase", extensions=[apps])
@@ -169,5 +174,16 @@ app.include_router(
         ],
     )
 )
+# The MCP SDK only accepts localhost Host and Origin headers (DNS rebinding protection), and answers
+# "Invalid Host header" to requests forwarded by a reverse proxy: the public hostnames are added to the allowed ones
+local_hosts = ["127.0.0.1", "localhost", "[::1]"]
+transport_security = TransportSecuritySettings(
+    allowed_hosts=[f"{h}:*" for h in local_hosts] + ALLOWED_HOSTS,
+    allowed_origins=[f"http://{h}:*" for h in local_hosts]
+    + [f"{scheme}://{h}" for h in ALLOWED_HOSTS for scheme in ("https", "http")],
+)
 # Mounted last at the root: it serves `/mcp` and would otherwise shadow the routes above
-app.mount("/", mcp.streamable_http_app(stateless_http=True, json_response=True))
+app.mount(
+    "/",
+    mcp.streamable_http_app(stateless_http=True, json_response=True, transport_security=transport_security),
+)

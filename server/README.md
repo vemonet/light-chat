@@ -21,12 +21,14 @@ The agent uses an OpenAI-compatible endpoint, configured in a `.env` file:
 
 ```bash
 OPENAI_API_KEY=sk-...
-# Optional, the EGI endpoint by default
-OPENAI_BASE_URL=https://llm.ai.egi.eu/v1
+# Optional, OpenRouter by default
+OPENAI_BASE_URL=https://openrouter.ai/api/v1
 # Optional, tool calling models to pick from in the UI, the first is the default
-MODELS=qwen3.8-27b,glm-5.3,kimi-k3,gpt-oss-120b
+MODELS=deepseek/deepseek-v4.1-flash,mistralai/mistral-large-4-0,anthropic/claude-haiku-5.5,openai/gpt-6-luna
 # Optional, UniProt MCP server URL, by default the one of this app is called in-process
 # MCP_URL=http://localhost:8083/mcp
+# Optional, public hostnames behind a reverse proxy, accepted by `/mcp` besides localhost
+# ALLOWED_HOSTS=chat.example.org
 ```
 
 Start the API:
@@ -39,7 +41,7 @@ Open http://localhost:8083, and pick the model in the settings menu. Try "Show t
 
 ## Deploy with Docker
 
-The image builds the chat UI and installs the server, from the repo root. The [compose file](compose.yml) uses [OpenRouter](https://openrouter.ai) with DeepSeek V4.1 Flash (default), Mistral Large 4, Claude Haiku 5.5 and GPT-6 Luna, overriding `OPENAI_BASE_URL` and `MODELS` from the `.env` file, which holds the OpenRouter key:
+The image builds the chat UI and installs the server, from the repo root. The server uses [OpenRouter](https://openrouter.ai) by default, with DeepSeek V4.1 Flash (default), Mistral Large 4, Claude Haiku 5.5 and GPT-6 Luna. The [compose file](compose.yml) forces the OpenRouter `OPENAI_BASE_URL` over the `.env` file, which holds the OpenRouter key:
 
 ```bash
 OPENAI_API_KEY=sk-or-...
@@ -58,7 +60,7 @@ docker build -f server/Dockerfile -t light-chat-server .
 docker run -p 8083:8000 --env-file server/.env light-chat-server
 ```
 
-The server listens on port 8000 in the container, and trusts `X-Forwarded-*` headers for a reverse proxy in front of it.
+The server listens on port 8000 in the container, and trusts `X-Forwarded-*` headers for a reverse proxy in front of it. Set `ALLOWED_HOSTS` to the public hostname, otherwise the MCP server at `/mcp` rejects proxied requests with `Invalid Host header` (DNS rebinding protection of the MCP SDK).
 
 ## How tool MCP UIs work
 
