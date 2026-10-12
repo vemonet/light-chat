@@ -145,7 +145,8 @@ async def models() -> list[str]:
 app.include_router(
     chat_router(
         path="/",
-        url="/chat",
+        # Relative to the page, so it works behind a reverse proxy serving the app under a prefix
+        url="chat",
         title="UniProt agent",
         settings={"models": MODELS},
         themeSwitch=True,

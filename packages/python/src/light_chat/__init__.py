@@ -41,9 +41,11 @@ PAGE = """<!doctype html>
 """
 
 
-def chat_router(path: str = "/", url: str = "/chat", title: str = "Chat", **options: Any) -> APIRouter:
+def chat_router(path: str = "/", url: str = "chat", title: str = "Chat", **options: Any) -> APIRouter:
     """Router serving the chat page at `path`, connected to the AG-UI endpoint at `url`.
 
+    A relative `url` resolves against the page, so it keeps the prefix of an app served behind a reverse proxy,
+    e.g. `chat` for a page at `https://example.org/agent/` targets `https://example.org/agent/chat`.
     Extra keyword arguments are passed as options of the JS `Chat`, e.g. `welcome`, `examples`, `settings`.
     The script is served next to the page, e.g. `/light-chat.js` for `/` or `/ui/light-chat.js` for `/ui/`.
     """

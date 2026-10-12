@@ -12,11 +12,11 @@ from light_chat import chat_router
 
 app = FastAPI()
 
-# Chat page at `/`, sending messages to the AG-UI endpoint at `/chat`
+# Chat page at `/`, sending messages to the AG-UI endpoint at `chat`, relative to the page
 app.include_router(
     chat_router(
         path="/",
-        url="/chat",
+        url="chat",
         title="My agent",
         # Other keyword arguments are passed as options of the JS `Chat`
         welcome="## How can I help you today?",
@@ -60,7 +60,7 @@ async def chat(request: Request) -> Response:
     return await AGUIAdapter.dispatch_request(request, agent=agent)
 
 
-app.include_router(chat_router(path="/", url="/chat"))
+app.include_router(chat_router(path="/", url="chat"))
 ```
 
 The agent only forwards, the chat decides what to render:
