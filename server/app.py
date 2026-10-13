@@ -2,30 +2,58 @@
 
 import os
 from contextlib import asynccontextmanager
-from typing import TypedDict
+from typing import Annotated, TypedDict
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from light_chat import chat_router, setup_logging
 from light_chat.mcp_apps import PROXIED_REQUEST, UIToolset, proxied_response
 from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
+from pydantic import BeforeValidator, SecretStr
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.ui.ag_ui import AGUIAdapter
+from pydantic_settings import BaseSettings, NoDecode
 
 from uniprot_apps import UNIPROT_API, apps, fetch_entry, get, http_client
 
 # Logs of all libraries in the uvicorn style, without a line per HTTP request
 setup_logging()
+# No first-run banner of Pydantic AI
+os.environ["PYDANTIC_AI_NO_BANNER"] = "1"
 
-# OpenAI-compatible endpoint, read by the OpenAI provider, with its tool calling models (the first is the default)
-os.environ.setdefault("OPENAI_BASE_URL", "https://openrouter.ai/api/v1")
-MODELS = os.getenv(
-    "MODELS", "deepseek/deepseek-v4.1-flash,mistralai/mistral-large-4-0,anthropic/claude-haiku-5.5,openai/gpt-6-luna"
-).split(",")
-# UniProt MCP server used by the agent: the one of this app, called in-process, unless an URL is set
-MCP_URL = os.getenv("MCP_URL")
-# Public hostnames of the app behind a reverse proxy (e.g. `chat.example.org`), accepted by `/mcp` besides localhost
-ALLOWED_HOSTS = [h.strip() for h in os.getenv("ALLOWED_HOSTS", "").split(",") if h.strip()]
+# Comma-separated list in an environment variable, e.g. `a,b`, instead of the JSON parsed by default
+CommaList = Annotated[
+    list[str],
+    NoDecode,
+    BeforeValidator(lambda v: [i.strip() for i in v.split(",") if i.strip()] if isinstance(v, str) else v),
+]
+
+
+class Settings(BaseSettings):
+    """Configuration from environment variables, named as the fields in upper case, e.g. `MODELS`"""
+
+    # OpenAI-compatible endpoint, with its tool calling models (the first is the default)
+    openai_base_url: str = "https://openrouter.ai/api/v1"
+    openai_api_key: SecretStr | None = None
+    models: CommaList = [
+        "deepseek/deepseek-v4.1-flash",
+        "mistralai/mistral-large-4-0",
+        "anthropic/claude-haiku-5.5",
+        "openai/gpt-6-luna",
+    ]
+    # UniProt MCP server used by the agent: the one of this app, called in-process, unless an URL is set
+    mcp_url: str | None = None
+    # Public hostnames of the app behind a reverse proxy (e.g. `chat.example.org`), accepted by `/mcp` besides localhost
+    allowed_hosts: CommaList = []
+
+
+settings = Settings()
+provider = OpenAIProvider(
+    base_url=settings.openai_base_url,
+    api_key=settings.openai_api_key.get_secret_value() if settings.openai_api_key else None,
+)
 
 # MCP server with UniProt tools, and tools showing widgets (MCP Apps) from `uniprot_apps.py`
 mcp = MCPServer("uniprot", instructions="Query the UniProt protein knowledgebase", extensions=[apps])
@@ -95,7 +123,7 @@ async def get_protein(accession: str) -> Protein:
 # Agent using the tools of the UniProt and Excalidraw MCP servers, the model is set per request.
 # Results of all tools are sent to the chat, which shows the ones with a UI
 ui_toolsets = [
-    UIToolset(MCP_URL or mcp, id="uniprot"),
+    UIToolset(settings.mcp_url or mcp, id="uniprot"),
     UIToolset("https://mcp.excalidraw.com/mcp", id="excalidraw"),
 ]
 # Failed tool calls are sent back to the model a few times, e.g. to fix an invalid UniProt query
@@ -133,17 +161,19 @@ async def chat(request: Request) -> Response:
     # MCP request from a widget, e.g. reading its UI resource or calling a tool of its server
     if PROXIED_REQUEST in forwarded:
         return await proxied_response(body, ui_toolsets)
-    model = forwarded.get("model") or MODELS[0]
-    if model not in MODELS:
-        raise HTTPException(400, f"Unknown model {model}, available: {', '.join(MODELS)}")
+    model = forwarded.get("model") or settings.models[0]
+    if model not in settings.models:
+        raise HTTPException(400, f"Unknown model {model}, available: {', '.join(settings.models)}")
     context = "\n\n".join(f"{c['description']}:\n{c['value']}" for c in body.get("context") or [])
-    return await AGUIAdapter.dispatch_request(request, agent=agent, model=f"openai-chat:{model}", deps=context)
+    return await AGUIAdapter.dispatch_request(
+        request, agent=agent, model=OpenAIChatModel(model, provider=provider), deps=context
+    )
 
 
 @app.get("/models")
 async def models() -> list[str]:
     """Models available for `/chat`"""
-    return MODELS
+    return settings.models
 
 
 # Chat UI at `/`, the model picked in the settings is sent in `forwardedProps.model`
@@ -153,7 +183,7 @@ app.include_router(
         # Relative to the page, so it works behind a reverse proxy serving the app under a prefix
         url="chat",
         title="UniProt agent",
-        settings={"models": MODELS},
+        settings={"models": settings.models},
         themeSwitch=True,
         welcome=(
             "## Ask about proteins\nThe agent queries [UniProt](https://www.uniprot.org), "
@@ -178,9 +208,9 @@ app.include_router(
 # "Invalid Host header" to requests forwarded by a reverse proxy: the public hostnames are added to the allowed ones
 local_hosts = ["127.0.0.1", "localhost", "[::1]"]
 transport_security = TransportSecuritySettings(
-    allowed_hosts=[f"{h}:*" for h in local_hosts] + ALLOWED_HOSTS,
+    allowed_hosts=[f"{h}:*" for h in local_hosts] + settings.allowed_hosts,
     allowed_origins=[f"http://{h}:*" for h in local_hosts]
-    + [f"{scheme}://{h}" for h in ALLOWED_HOSTS for scheme in ("https", "http")],
+    + [f"{scheme}://{h}" for h in settings.allowed_hosts for scheme in ("https", "http")],
 )
 # Mounted last at the root: it serves `/mcp` and would otherwise shadow the routes above
 app.mount(

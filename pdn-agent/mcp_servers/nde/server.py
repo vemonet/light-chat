@@ -65,7 +65,7 @@ mcp = MCPServer(
 
 # Every tool here is a read against a public API: no writes, no side effects,
 # and the record corpus is effectively unbounded from the client's view.
-READ_ONLY = ToolAnnotations(readOnlyHint=True, openWorldHint=True)
+READ_ONLY = ToolAnnotations(read_only_hint=True, open_world_hint=True)
 
 # Cap on the probe requests the zero-result diagnostic will issue.
 MAX_DIAGNOSTIC_PROBES = 8

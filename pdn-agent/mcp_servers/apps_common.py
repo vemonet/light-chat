@@ -11,7 +11,7 @@ from typing import Any
 
 from mcp_types import CallToolResult, TextContent
 
-WIDGETS = Path(__file__).parent.parent / "widgets"
+WIDGETS = Path(__file__).parent / "widgets"
 # CDN of the libraries loaded by widgets, to allow in their CSP `resource_domains`
 CDN = "https://cdn.jsdelivr.net"
 

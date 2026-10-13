@@ -9,7 +9,7 @@ The agent only forwards, the chat decides what to render:
 Requires the `mcp-apps` extra: `pip install "light-chat[mcp-apps]"`
 """
 
-from typing import Any
+from typing import Any, Self
 from uuid import uuid4
 
 from ag_ui.core import ActivitySnapshotEvent, RunFinishedEvent, RunStartedEvent
@@ -18,7 +18,6 @@ from fastapi.responses import StreamingResponse
 from pydantic_ai import ModelRetry, RunContext, ToolReturn
 from pydantic_ai.mcp import MCPToolset
 from pydantic_ai.toolsets import ToolsetTool
-from typing_extensions import Self
 
 __all__ = ["PROXIED_REQUEST", "UIToolset", "proxied_response"]
 

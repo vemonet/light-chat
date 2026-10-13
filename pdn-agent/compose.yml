@@ -6,10 +6,8 @@ services:
       context: ..
       dockerfile: pdn-agent/Dockerfile
     env_file: .env
-    # Override `.env`, the first model is the default
     environment:
-      OPENAI_BASE_URL: https://openrouter.ai/api/v1
-      MODELS: deepseek/deepseek-v4.1-flash,mistralai/mistral-large-4-0,anthropic/claude-haiku-5.5,openai/gpt-6-luna
+      ALLOWED_HOSTS: biosoda.unil.ch
     ports:
       - "8084:8000"
     restart: unless-stopped

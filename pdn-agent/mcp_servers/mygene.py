@@ -406,6 +406,12 @@ def _trim_generif(doc: dict) -> str | None:
     )
 
 
+def _head(rows: list | dict, count: int) -> list | dict:
+    """First rows of a list or of a mapping of them. Test the type rather than the keys: an empty mapping has no
+    keys, and taking it for a list would slice a dict."""
+    return dict(list(rows.items())[:count]) if isinstance(rows, dict) else rows[:count]
+
+
 def _fit(root: dict, container: dict, rows_key: str) -> tuple[int, int]:
     """Trim container[rows_key] until the JSON of root fits the budget.
 
@@ -416,23 +422,15 @@ def _fit(root: dict, container: dict, rows_key: str) -> tuple[int, int]:
     rows = container.get(rows_key)
     if not isinstance(rows, (list, dict)):
         return 0, 0
-    # Test the type rather than the keys: an empty mapping has no keys, and
-    # taking it for a list would slice a dict.
-    is_mapping = isinstance(rows, dict)
-    keys = list(rows) if is_mapping else []
-
-    def head(count: int):
-        return {k: rows[k] for k in keys[:count]} if is_mapping else rows[:count]
-
     budget = max(MAX_RESPONSE_CHARS - TRUNCATION_RESERVE, MAX_RESPONSE_CHARS // 2)
     total = len(rows)
     kept = total
     while kept > 1:
-        container[rows_key] = head(kept)
+        container[rows_key] = _head(rows, kept)
         if len(json.dumps(root, default=str)) <= budget:
             break
         kept -= max(1, kept // 10)
-    container[rows_key] = head(kept)
+    container[rows_key] = _head(rows, kept)
     return kept, total
 
 

@@ -4,6 +4,7 @@ import difflib
 import json
 import time
 from datetime import date, timedelta
+from typing import Any
 
 import requests
 from mcp.server.mcpserver.exceptions import ToolError
@@ -30,7 +31,7 @@ LAPIS_SCHEMA_TTL_SECONDS = 3600
 
 # No LAPIS endpoint lists the organisms. These names come from each
 # database's API documentation page, checked on 2026-09-16.
-LAPIS_DATABASES = {
+LAPIS_DATABASES: dict[str, dict[str, Any]] = {
     "pathoplexus": {
         "name": "Pathoplexus",
         "description": "Human viral pathogens",
@@ -167,12 +168,13 @@ class LapisResponseTooLarge(Exception):
     """A LAPIS response passed the size limit that the caller set."""
 
 
-def _lapis_post(url: str, body: dict, max_bytes: int | None = None) -> tuple[list[dict], str | None]:
+def _lapis_post(url: str, body: dict, max_bytes: int | None = None) -> tuple[Any, str | None]:
     """POST a LAPIS query. Return the data rows and the LAPIS data version.
 
     A LAPIS error becomes a short tool error. With max_bytes, the read stops
     as soon as the response passes that size. The sequence endpoints answer
-    with a bare list, and every other endpoint wraps its rows in "data".
+    with a bare list, and every other endpoint wraps its rows in "data", an
+    object for the component endpoints.
     """
     with requests.post(url, json=body, headers=LAPIS_HEADERS, timeout=60, stream=True) as resp:
         if resp.status_code >= 400:

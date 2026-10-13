@@ -95,6 +95,7 @@ Run format, lint, type checks and tests for the whole workspace:
 
 ```bash
 vp check && vp test
+uvx ruff check --fix && uvx ruff format && uvx ty check
 ```
 
 Tests are split in 3 projects, defined in the root `vite.config.ts`:

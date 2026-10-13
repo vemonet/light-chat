@@ -379,11 +379,11 @@ def fetch_variants(variant: str, assembly: str) -> tuple[list[dict[str, Any]], s
             doc = None
         if doc and informative(doc):
             return [doc], None
-        same = sorted(shifted_equivalents(doc, assembly), key=rank, reverse=True) if doc else []
-        if same and informative(same[0]):
-            note = f"{v} has no ClinVar or gnomAD record ({assembly}), shown: the same indel at another position"
-            return [*same, doc], note
         if doc:
+            same = sorted(shifted_equivalents(doc, assembly), key=rank, reverse=True)
+            if same and informative(same[0]):
+                note = f"{v} has no ClinVar or gnomAD record ({assembly}), shown: the same indel at another position"
+                return [*same, doc], note
             return [doc], None
         raise ToolError(
             f"{v} not found in MyVariant ({assembly}). Check the assembly (hg19 or hg38) and the HGVS normalization, "

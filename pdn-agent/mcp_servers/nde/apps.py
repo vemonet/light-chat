@@ -18,7 +18,7 @@ from .client import PORTAL_RESOURCE_URL, NDEError, get_client
 from .format import first_name, format_facets, names_of, truncate
 from .query import build_clauses, build_params, join_clauses, normalize_sort
 
-READ_ONLY = ToolAnnotations(readOnlyHint=True, openWorldHint=True)
+READ_ONLY = ToolAnnotations(read_only_hint=True, open_world_hint=True)
 # Rows loaded in the table: ~700 bytes each in structuredContent
 MAX_ROWS = 1000
 DESCRIPTION_CHARS = 300

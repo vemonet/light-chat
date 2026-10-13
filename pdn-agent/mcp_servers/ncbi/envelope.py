@@ -162,7 +162,7 @@ def _sources(calls: list[Any], records_by_database: dict[str, int] | None) -> li
     per_db: dict[tuple[str, str], dict[str, Any]] = {}
     for call in primary:
         key = (getattr(call, "service", EUTILS_SOURCE), call.db)
-        entry = per_db.get(key)
+        entry: dict[str, Any] | None = per_db.get(key)
         if entry is None:
             order.append(key)
             entry = per_db[key] = {

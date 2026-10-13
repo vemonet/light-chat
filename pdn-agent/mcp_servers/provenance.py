@@ -30,7 +30,7 @@ from ag_ui.core import (
 from mcp.server.apps import Apps
 from mcp.server.mcpserver import MCPServer
 
-from servers.apps_common import widget_html
+from .apps_common import widget_html
 
 MARKER = "<!--PROVENANCE-->"
 GRAPH_URI = "ui://provenance/graph.html"

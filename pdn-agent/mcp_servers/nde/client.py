@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import Any, Self
 
 import httpx2 as httpx
-from typing_extensions import Self
 
 from . import __version__
 

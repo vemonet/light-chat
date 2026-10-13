@@ -11,6 +11,7 @@ import os
 import threading
 import time
 import xml.etree.ElementTree as ET
+from collections.abc import Mapping
 from typing import Any, Literal
 
 import requests
@@ -258,7 +259,7 @@ def _article_ids(article: ET.Element) -> dict[str, str]:
     return ids
 
 
-def _links(pmid: str, ids: dict[str, str]) -> dict[str, str]:
+def _links(pmid: str, ids: Mapping[str, str | None]) -> dict[str, str]:
     links = {"pubmed_url": PUBMED_URL.format(pmid=pmid)}
     if ids.get("doi"):
         links["doi_url"] = DOI_URL.format(doi=ids["doi"])
@@ -269,6 +270,8 @@ def _links(pmid: str, ids: dict[str, str]) -> dict[str, str]:
 
 def _parse_core(article: ET.Element, pmid: str) -> dict:
     citation = article.find("MedlineCitation")
+    if citation is None:
+        citation = ET.Element("MedlineCitation")
     ids = _article_ids(article)
     authors = [
         " ".join(filter(None, (_text(a, "ForeName"), _text(a, "LastName")))) or _text(a, "CollectiveName")
@@ -299,7 +302,7 @@ def _pub_date(citation: ET.Element) -> str | None:
 
 
 def _parse_abstract(article: ET.Element) -> dict:
-    sections = []
+    sections: list[dict[str, Any]] = []
     for at in article.findall(".//Abstract/AbstractText"):
         sections.append({"label": at.attrib.get("Label"), "text": at.text or ""})
     return {
@@ -327,6 +330,12 @@ def _parse_mesh(article: ET.Element) -> dict:
     }
 
 
+def _head(rows: list | dict, count: int) -> list | dict:
+    """First rows of a list or of a mapping of them. Test the type rather than the keys: an empty mapping has no
+    keys, and taking it for a list would slice a dict."""
+    return dict(list(rows.items())[:count]) if isinstance(rows, dict) else rows[:count]
+
+
 def _fit(root: dict, container: dict, rows_key: str) -> tuple[int, int]:
     """Trim container[rows_key] until the JSON of root fits the budget.
 
@@ -337,21 +346,15 @@ def _fit(root: dict, container: dict, rows_key: str) -> tuple[int, int]:
     rows = container.get(rows_key)
     if not isinstance(rows, (list, dict)):
         return 0, 0
-    is_mapping = isinstance(rows, dict)
-    keys = list(rows) if is_mapping else []
-
-    def head(count: int):
-        return {k: rows[k] for k in keys[:count]} if is_mapping else rows[:count]
-
     budget = max(MAX_RESPONSE_CHARS - TRUNCATION_RESERVE, MAX_RESPONSE_CHARS // 2)
     total = len(rows)
     kept = total
     while kept > 1:
-        container[rows_key] = head(kept)
+        container[rows_key] = _head(rows, kept)
         if len(json.dumps(root, default=str)) <= budget:
             break
         kept -= max(1, kept // 10)
-    container[rows_key] = head(kept)
+    container[rows_key] = _head(rows, kept)
     return kept, total
 
 

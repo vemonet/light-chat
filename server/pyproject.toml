@@ -10,6 +10,7 @@ dependencies = [
   "mcp >=2.3.0",
   "pydantic-ai-slim[ag-ui,anthropic,mcp,openai] >=2.54.0",
   "uvicorn[standard] >=0.54.0",
+  "pydantic-settings >=2.15.0",
 ]
 
 [tool.uv.sources]

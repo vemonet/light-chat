@@ -23,7 +23,7 @@ from .envelope import NCBIError
 from .eutils import TransportError
 from .shared import pathogen_client, pathogen_filter
 
-READ_ONLY = ToolAnnotations(readOnlyHint=True, openWorldHint=True)
+READ_ONLY = ToolAnnotations(read_only_hint=True, open_world_hint=True)
 # Isolates loaded in the table: ~400 bytes each in structuredContent
 MAX_ISOLATES = 2000
 # Genes sent to the heatmap, the widget shows the top N of them

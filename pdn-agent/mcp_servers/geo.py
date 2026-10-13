@@ -36,6 +36,7 @@ import os
 import re
 import threading
 import time
+from typing import Any
 from urllib.parse import urlencode, urljoin
 
 import requests
@@ -685,7 +686,7 @@ def geo_resolve_accession(accessions: str) -> dict:
     if not items:
         raise ToolError("Provide at least one GEO accession.")
 
-    resolved = []
+    resolved: list[dict[str, Any]] = []
     for item in items:
         try:
             uid, canonical = resolve_uid(item)

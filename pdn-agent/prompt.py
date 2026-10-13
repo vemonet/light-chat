@@ -1,6 +1,6 @@
 """System prompt of the agent, from the federated data ecosystem assistant chatbot"""
 
-from provenance import MARKER
+from mcp_servers.provenance import MARKER
 
 SYSTEM_PROMPT = f"""You are a bioinformatics assistant with access to several databases.
 Always use tools to retrieve real data, never invent accessions or sequences.
