@@ -35,8 +35,9 @@ The agent uses an OpenAI-compatible endpoint, configured in a `.env` file:
 OPENAI_API_KEY=sk-...
 # Optional, OpenRouter by default
 OPENAI_BASE_URL=https://openrouter.ai/api/v1
-# Optional, tool calling models to pick from in the UI, the first is the default
-MODELS=deepseek/deepseek-v4.1-flash,mistralai/mistral-large-4-0,anthropic/claude-haiku-5.5,openai/gpt-6-luna
+# Optional, tool calling models to pick from in the UI, the first is the default. Comma-separated names,
+# or a JSON list to set the reasoning effort levels of each model, lowest first (no effort slider without levels)
+MODELS='[{"name": "deepseek/deepseek-v4.1-flash-1017", "effort": ["none", "low", "high", "max"], "default_effort": "high"}, "mistralai/mistral-large-4-0"]'
 # Optional, raises the NCBI rate limit from 3 to 10 requests per second
 NCBI_API_KEY=
 # Optional, public hostnames behind a reverse proxy, accepted by the MCP servers besides localhost
@@ -49,7 +50,7 @@ Start the API:
 uv run --env-file .env uvicorn app:app --port 8084 --reload
 ```
 
-Open http://localhost:8084, and pick the model in the settings menu. Try "How many Klebsiella pneumoniae isolates in NCBI Pathogen Detection carry a KPC carbapenemase gene?", "Which E. coli gene expression studies involve ciprofloxacin?" or "Show the domains, PTMs and variants of human AKT1".
+Open http://localhost:8084, and pick the model and its reasoning effort in the settings menu. Try "How many Klebsiella pneumoniae isolates in NCBI Pathogen Detection carry a KPC carbapenemase gene?", "Which E. coli gene expression studies involve ciprofloxacin?" or "Show the domains, PTMs and variants of human AKT1".
 
 ## Provenance
 

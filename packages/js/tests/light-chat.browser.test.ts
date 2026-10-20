@@ -334,7 +334,7 @@ test("tool results without UI are not shown", async () => {
 
 test("the connector receives the history, the default settings and the conversation id", async () => {
   const { connector, calls } = replying(text("ok"));
-  const chat = mount({ connector, settings: { models: ["a", "b"], effort: ["low", "mid", "high"] } });
+  const chat = mount({ connector, settings: { models: [{ name: "a", effort: ["low", "mid", "high"] }, "b"] } });
   await chat.send("one");
   await chat.send("two");
 
@@ -574,7 +574,10 @@ test("the IndexedDB history keeps conversations across page loads", async () => 
 
 test("settings picked in the toolbar are sent to the connector and remembered", async () => {
   const { connector, calls } = replying(text("ok"));
-  const options: ChatOptions = { connector, settings: { apiKey: true, models: ["m1", "m2"], effort: ["low", "high"] } };
+  const options: ChatOptions = {
+    connector,
+    settings: { apiKey: true, models: ["m1", { name: "m2", effort: ["low", "high"] }] },
+  };
   const chat = mount(options);
 
   // Model menu
@@ -596,6 +599,37 @@ test("settings picked in the toolbar are sent to the connector and remembered", 
   chat.destroy();
   mount(options);
   await expect.element(ui().getByRole("button", { name: "Model" })).toHaveTextContent("m2");
+});
+
+test("the effort slider follows the levels of the picked model", async () => {
+  const { connector, calls } = replying(text("ok"));
+  const models = [
+    { name: "m1", effort: ["none", "low", "high", "max"] },
+    { name: "m2", effort: ["low", "medium", "high"], defaultEffort: "low" },
+    "m3",
+  ];
+  const chat = mount({ connector, settings: { models } });
+  const pick = async (name: string) => {
+    await ui().getByRole("button", { name: "Model" }).click();
+    await ui().getByRole("menuitemradio", { name }).click();
+  };
+
+  // Middle level of the first model by default
+  await expect.element(ui().getByRole("button", { name: "Effort: high" })).toBeVisible();
+  // Kept when the next model has it
+  await pick("m2");
+  await chat.send("one");
+  expect(calls[0].settings).toMatchObject({ model: "m2", effort: "high" });
+  // No slider and no effort for a model without levels
+  await pick("m3");
+  await expect.element(ui().getByRole("button", { name: /^Effort/ })).not.toBeInTheDocument();
+  await chat.send("two");
+  expect(calls[1].settings.model).toBe("m3");
+  expect(calls[1].settings.effort).toBeUndefined();
+  // Model default when the current level is not available
+  await pick("m2");
+  await chat.send("three");
+  expect(calls[2].settings).toMatchObject({ model: "m2", effort: "low" });
 });
 
 test("saved settings that are not available anymore fall back to the defaults", async () => {

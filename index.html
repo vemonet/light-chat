@@ -73,12 +73,14 @@
           connector: protocol === "openai" ? new OpenAIConnector({ url }) : new AgUiConnector({ url }),
           settings: {
             apiKey: true,
-            models: ["qwen-3.8", "kimi-k3", "gpt-5"],
+            // Effort levels per model, kimi-k3 has no effort slider
+            models: [
+              { name: "qwen-3.8", effort: ["minimal", "low", "medium", "high"] },
+              "kimi-k3",
+              { name: "gpt-5", effort: ["none", "low", "medium", "high", "xhigh"] },
+            ],
             // Custom callback: sent as ?effort= query parameter instead of the connector default
-            effort: {
-              values: ["minimal", "low", "medium", "high"],
-              apply: (req, effort) => req.url.searchParams.set("effort", effort),
-            },
+            effort: { apply: (req, effort) => req.url.searchParams.set("effort", effort) },
           },
           themeSwitch: true,
           examples: [

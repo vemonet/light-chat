@@ -20,7 +20,7 @@ OPENAI_API_KEY=sk-...
 # Optional, OpenRouter by default
 OPENAI_BASE_URL=https://openrouter.ai/api/v1
 # Optional, tool calling models to pick from in the UI, the first is the default
-MODELS=deepseek/deepseek-v4.1-flash,mistralai/mistral-large-4-0,anthropic/claude-haiku-5.5,openai/gpt-6-luna
+MODELS=deepseek/deepseek-v4.1-flash-1017,mistralai/mistral-large-4-0,anthropic/claude-haiku-5.5,openai/gpt-6-luna
 ```
 
 Start the API:

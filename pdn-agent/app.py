@@ -23,10 +23,10 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from light_chat import chat_router, setup_logging
 from light_chat.mcp_apps import PROXIED_REQUEST, UIToolset, proxied_response, ui_meta
 from mcp.server.transport_security import TransportSecuritySettings
-from pydantic import BeforeValidator, SecretStr
+from pydantic import BaseModel, BeforeValidator, Field, SecretStr
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.mcp import MCPToolset
-from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.models.openai import OpenAIChatModel, OpenAIChatModelSettings
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.toolsets import ToolsetTool
 from pydantic_ai.ui.ag_ui import AGUIAdapter
@@ -51,17 +51,42 @@ CommaList = Annotated[
 ]
 
 
+class Model(BaseModel):
+    """Tool calling model, with the reasoning effort levels it supports, lowest first"""
+
+    name: str
+    effort: list[str] = []
+    # Level used when the request has none, the middle one in the UI when unset
+    default_effort: str | None = Field(None, serialization_alias="defaultEffort")
+
+
+def parse_models(value: Any) -> Any:
+    """Models from a JSON list (names or objects), or comma-separated names without effort levels"""
+    if isinstance(value, str):
+        value = json.loads(value) if value.lstrip().startswith("[") else [i for i in value.split(",") if i.strip()]
+    return [{"name": m.strip()} if isinstance(m, str) else m for m in value]
+
+
 class Settings(BaseSettings):
     """Configuration from environment variables, named as the fields in upper case, e.g. `MODELS`"""
 
-    # OpenAI-compatible endpoint, with its tool calling models (the first is the default)
+    # OpenAI-compatible endpoint, with its tool calling models (the first is the default).
+    # Effort levels and defaults from the `reasoning.supported_efforts` of https://openrouter.ai/api/v1/models
     openai_base_url: str = "https://openrouter.ai/api/v1"
     openai_api_key: SecretStr | None = None
-    models: CommaList = [
-        "deepseek/deepseek-v4.1-flash",
-        "mistralai/mistral-large-4-0",
-        "anthropic/claude-haiku-5.5",
-        "openai/gpt-6-luna",
+    models: Annotated[list[Model], NoDecode, BeforeValidator(parse_models)] = [
+        Model(name="deepseek/deepseek-v4.1-flash-1017", effort=["none", "low", "high", "max"], default_effort="low"),
+        Model(name="mistralai/mistral-large-4-0", effort=["none", "high"], default_effort="high"),
+        Model(
+            name="anthropic/claude-haiku-5.5",
+            effort=["none", "low", "medium", "high", "xhigh", "max"],
+            default_effort="medium",
+        ),
+        Model(
+            name="openai/gpt-6-luna",
+            effort=["none", "low", "medium", "high", "xhigh", "max"],
+            default_effort="medium",
+        ),
     ]
     # Public hostnames of the app behind a reverse proxy (e.g. `pdn.example.org`)
     allowed_hosts: CommaList = []
@@ -225,39 +250,46 @@ async def log_run(events: AsyncIterator[BaseEvent], model: str, question: str | 
 
 @app.post("/chat")
 async def chat(request: Request) -> Response:
-    """AG-UI endpoint streaming the agent response, with the model picked in `forwardedProps.model`.
+    """AG-UI endpoint streaming the agent response, with the model and effort picked in `forwardedProps`.
     The provenance written after the answer, and the graph of the tool calls, are sent as a sub-agent message"""
     body = await request.json()  # cached, the adapter reads the body again
     forwarded = body.get("forwardedProps") or {}
     # MCP request from a widget, e.g. reading its UI resource or calling a tool of its server
     if PROXIED_REQUEST in forwarded:
         return await proxied_response(body, ui_toolsets)
-    model = forwarded.get("model") or settings.models[0]
-    if model not in settings.models:
-        raise HTTPException(400, f"Unknown model {model}, available: {', '.join(settings.models)}")
+    model = forwarded.get("model") or settings.models[0].name
+    config = next((m for m in settings.models if m.name == model), None)
+    if config is None:
+        raise HTTPException(400, f"Unknown model {model}, available: {', '.join(m.name for m in settings.models)}")
+    # Reasoning effort among the levels of the model, none sent when it has no levels
+    effort = forwarded.get("effort") or config.default_effort
+    if effort and effort not in config.effort:
+        raise HTTPException(400, f"Unknown effort {effort} for {model}, available: {', '.join(config.effort)}")
+    model_settings = OpenAIChatModelSettings(openai_reasoning_effort=effort) if effort else None
     context = "\n\n".join(f"{c['description']}:\n{c['value']}" for c in body.get("context") or [])
     adapter = await AGUIAdapter[str, str].from_request(request, agent=agent)
     toolsets = await available_remote_toolsets()
-    events = adapter.run_stream(model=OpenAIChatModel(model, provider=provider), deps=context, toolsets=toolsets)
+    chat_model = OpenAIChatModel(model, provider=provider, settings=model_settings)
+    events = adapter.run_stream(model=chat_model, deps=context, toolsets=toolsets)
     question = last_user_text(body)
     events = log_run(split_provenance(events, tool_servers, question, model), model, question)
     return adapter.streaming_response(events)
 
 
 @app.get("/models")
-async def models() -> list[str]:
-    """Models available for `/chat`"""
+async def models() -> list[Model]:
+    """Models available for `/chat`, with their effort levels"""
     return settings.models
 
 
-# Chat UI at `/`, the model picked in the settings is sent in `forwardedProps.model`
+# Chat UI at `/`, the model and effort picked in the settings are sent in `forwardedProps`
 app.include_router(
     chat_router(
         path="/",
         # Relative to the page, so it works behind a reverse proxy serving the app under a prefix
         url="chat",
         title="Pathogen Data Network agent",
-        settings={"models": settings.models},
+        settings={"models": [m.model_dump(by_alias=True, exclude_none=True) for m in settings.models]},
         themeSwitch=True,
         welcome=(
             "## Ask about pathogens, genes, proteins and datasets\nThe agent federates the Pathogen Data Network, "

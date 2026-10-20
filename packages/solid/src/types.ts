@@ -135,6 +135,15 @@ export type ApplySetting = (req: ChatRequest, value: string) => void;
 /** Callback of each setting, keyed like `ChatSettings` */
 export type SettingAppliers = Partial<Record<keyof ChatSettings, ApplySetting>>;
 
+/** Model in the settings menu, with the effort levels of the slider shown when it is picked */
+export interface ModelOption {
+  name: string;
+  /** Effort levels, lowest first, e.g. `["none", "low", "high"]`. No effort slider when empty */
+  effort?: string[];
+  /** Default effort level. Default: the middle one */
+  defaultEffort?: string;
+}
+
 /** "auto" follows the OS preference */
 export type Theme = "auto" | "light" | "dark";
 
@@ -173,10 +182,13 @@ export interface ChatOptions {
   settings?: {
     /** Ask for an API key. Default: `Authorization: Bearer <key>` header */
     apiKey?: boolean | { apply?: ApplySetting };
-    /** Models to choose from, the first one is the default. Default apply defined by the connector */
-    models?: string[] | { values: string[]; apply?: ApplySetting };
-    /** Effort levels for a slider, the middle one is the default. Default apply defined by the connector */
-    effort?: string[] | { values: string[]; apply?: ApplySetting };
+    /**
+     * Models to choose from, the first one is the default. Models with `effort` levels show an effort slider.
+     * Default apply defined by the connector
+     */
+    models?: (string | ModelOption)[] | { values: (string | ModelOption)[]; apply?: ApplySetting };
+    /** How the effort level of the picked model is added to the request. Default defined by the connector */
+    effort?: { apply?: ApplySetting };
   };
   /** Enables thumbs up/down buttons under assistant messages */
   onRate?: (message: Message, rating: Rating) => void;

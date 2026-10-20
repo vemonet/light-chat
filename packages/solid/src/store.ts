@@ -11,6 +11,7 @@ import type {
   FilePart,
   McpRequest,
   Message,
+  ModelOption,
   Part,
   Rating,
   StepPart,
@@ -178,26 +179,41 @@ type SettingsOptions = NonNullable<ChatOptions["settings"]>;
 
 /** Settings options normalized: enabled flags, selectable values and callbacks from the options */
 function settingsConfig(config: SettingsOptions = {}) {
-  const values = (c: SettingsOptions["models"]) => (Array.isArray(c) ? c : (c?.values ?? []));
+  const models = Array.isArray(config.models) ? config.models : (config.models?.values ?? []);
   const apply = (c: SettingsOptions[keyof SettingsOptions]) =>
     typeof c === "object" && !Array.isArray(c) ? c.apply : undefined;
   return {
     apiKey: !!config.apiKey,
-    models: values(config.models),
-    effort: values(config.effort),
-    apply: { apiKey: apply(config.apiKey), model: apply(config.models), effort: apply(config.effort) },
+    // Model names as strings or with their effort levels
+    models: models.map((m): ModelOption => (typeof m === "string" ? { name: m } : m)),
+    apply: { apiKey: apply(config.apiKey), model: apply(config.models), effort: config.effort?.apply },
   };
 }
 
+type SettingsConfig = ReturnType<typeof settingsConfig>;
+
+/** Effort levels of a model, empty when it has none */
+const effortLevels = (config: SettingsConfig, model?: string) =>
+  config.models.find((m) => m.name === model)?.effort ?? [];
+
+/** Effort kept when the model has this level, otherwise the model default, or the middle level */
+function effortFor(config: SettingsConfig, model?: string, effort?: string) {
+  const levels = effortLevels(config, model);
+  if (!levels.length) return undefined;
+  if (effort && levels.includes(effort)) return effort;
+  const fallback = config.models.find((m) => m.name === model)?.defaultEffort;
+  return fallback && levels.includes(fallback) ? fallback : levels[Math.floor(levels.length / 2)];
+}
+
 /** Saved settings, restricted to the enabled ones and to valid values */
-function initSettings(config: ReturnType<typeof settingsConfig>): ChatSettings {
+function initSettings(config: SettingsConfig): ChatSettings {
   const saved = loadSettings();
-  const pick = (values: string[], value: string | undefined, fallback: number) =>
-    values.length ? (value && values.includes(value) ? value : values[fallback]) : undefined;
+  const names = config.models.map((m) => m.name);
+  const model = names.length ? (saved.model && names.includes(saved.model) ? saved.model : names[0]) : undefined;
   return {
     apiKey: config.apiKey ? saved.apiKey : undefined,
-    model: pick(config.models, saved.model, 0),
-    effort: pick(config.effort, saved.effort, Math.floor(config.effort.length / 2)),
+    model,
+    effort: effortFor(config, model, saved.effort),
   };
 }
 
@@ -335,6 +351,8 @@ export function createChat(options: ChatOptions) {
 
   function setSetting<K extends keyof ChatSettings>(key: K, value: ChatSettings[K]) {
     setSettings(key, value);
+    // Effort levels depend on the model, the current level is kept when the new model has it
+    if (key === "model") setSettings("effort", effortFor(config, value, settings.effort));
     try {
       // Merge with saved values, so settings disabled in this chat are kept
       const enabled = Object.entries(settings).filter(([, v]) => v !== undefined);
@@ -423,6 +441,8 @@ export function createChat(options: ChatOptions) {
     state,
     settings,
     config,
+    /** Effort levels of the picked model */
+    effortLevels: () => effortLevels(config, settings.model),
     options,
     history,
     send,

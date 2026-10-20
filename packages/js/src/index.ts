@@ -28,6 +28,7 @@ export type {
   HttpConnectorOptions,
   McpRequest,
   Message,
+  ModelOption,
   Part,
   Rating,
   ReasoningPart,

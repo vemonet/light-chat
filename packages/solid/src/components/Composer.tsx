@@ -119,7 +119,7 @@ export function Composer(props: { chat: ChatController; onSend: () => void }) {
         </div>
       </div>
       {/* Toolbar right under the input box: files on the left, enabled settings on the right */}
-      <Show when={attachments || config.models.length || config.effort.length || config.apiKey}>
+      <Show when={attachments || config.models.length || chat.effortLevels().length || config.apiKey}>
         <div class="lc-toolbar">
           <Show when={attachments}>
             <button
@@ -147,7 +147,7 @@ export function Composer(props: { chat: ChatController; onSend: () => void }) {
             <Show when={config.models.length}>
               <ModelSetting chat={chat} />
             </Show>
-            <Show when={config.effort.length}>
+            <Show when={chat.effortLevels().length}>
               <EffortSetting chat={chat} />
             </Show>
             <Show when={config.apiKey}>

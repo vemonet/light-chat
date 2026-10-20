@@ -79,8 +79,8 @@ const chat = new Chat("chat", {
   urlParam: "session", // open conversation id kept in the URL (?session=ID) and opened on load, false to disable
   settings: {
     // all disabled by default, each enabled one is shown in the toolbar under the input box
-    models: ["qwen-3.8", "kimi-k3"], // model menu, first is the default
-    effort: ["low", "medium", "high"], // effort slider, middle is the default
+    // model menu, first is the default. A model with effort levels shows an effort slider, middle level by default
+    models: [{ name: "qwen-3.8", effort: ["none", "low", "high"], defaultEffort: "high" }, "kimi-k3"],
     apiKey: true, // API key input
   },
   onRate: (message, rating) => console.log(rating, message), // shows thumbs up/down, rating is "up" | "down" | null
@@ -108,13 +108,18 @@ Settings chosen by the user are saved in `localStorage` (key `light-chat-setting
 | Model   | body `model`                  | body `forwardedProps.model`   |
 | Effort  | body `reasoning_effort`       | body `forwardedProps.effort`  |
 
+Effort levels are defined per model, lowest first, as models support different levels. The level picked is kept when switching to a model that has it, otherwise the new model default is used. Models without `effort` hide the slider and send no effort.
+
 Pass an `apply` callback to change how a value is added to the request. It receives the request (`url` as a `URL`, `headers` and `body` objects) and the value:
 
 ```js
 settings: {
   apiKey: { apply: (req, key) => (req.headers["X-Api-Key"] = key) },
-  models: { values: ["qwen-3.8", "kimi-k3"], apply: (req, model) => req.url.searchParams.set("model", model) },
-  effort: { values: ["low", "medium", "high"], apply: (req, effort) => (req.body.reasoning = { effort }) },
+  models: {
+    values: [{ name: "qwen-3.8", effort: ["low", "medium", "high"] }, "kimi-k3"],
+    apply: (req, model) => req.url.searchParams.set("model", model),
+  },
+  effort: { apply: (req, effort) => (req.body.reasoning = { effort }) },
 }
 ```
 

@@ -42,7 +42,7 @@ const chat = new Chat("chat", {
   connector: new OpenAIConnector({ url: "/v1/chat/completions" }),
   welcome: "## How can I help you today?",
   examples: ["What can you do?", "Summarize this document"],
-  settings: { models: ["qwen-3.8", "kimi-k3"], effort: ["low", "medium", "high"] },
+  settings: { models: [{ name: "qwen-3.8", effort: ["low", "medium", "high"] }, "kimi-k3"] },
 });
 ```
 

@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     openai_base_url: str = "https://openrouter.ai/api/v1"
     openai_api_key: SecretStr | None = None
     models: CommaList = [
-        "deepseek/deepseek-v4.1-flash",
+        "deepseek/deepseek-v4.1-flash-1017",
         "mistralai/mistral-large-4-0",
         "anthropic/claude-haiku-5.5",
         "openai/gpt-6-luna",

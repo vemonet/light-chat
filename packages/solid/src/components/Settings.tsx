@@ -65,19 +65,19 @@ export function ModelSetting(props: { chat: ChatController }) {
       {(close) => (
         <div class="lc-menu" role="menu">
           <For each={chat.config.models}>
-            {(m) => (
+            {({ name }) => (
               <button
                 type="button"
                 class="lc-menu-item"
                 role="menuitemradio"
-                aria-checked={m === chat.settings.model}
+                aria-checked={name === chat.settings.model}
                 onClick={() => {
-                  chat.setSetting("model", m);
+                  chat.setSetting("model", name);
                   close();
                 }}
               >
-                <span>{m}</span>
-                <Show when={m === chat.settings.model}>
+                <span>{name}</span>
+                <Show when={name === chat.settings.model}>
                   <CheckIcon />
                 </Show>
               </button>
@@ -89,10 +89,10 @@ export function ModelSetting(props: { chat: ChatController }) {
   );
 }
 
-/** Button opening a slider to pick the effort level */
+/** Button opening a slider to pick the effort level, among the levels of the picked model */
 export function EffortSetting(props: { chat: ChatController }) {
   const { chat } = props;
-  const effort = chat.config.effort;
+  const effort = () => chat.effortLevels();
   return (
     <Popover label={`Effort: ${chat.settings.effort}`} trigger={<GaugeIcon />}>
       {() => (
@@ -103,13 +103,13 @@ export function EffortSetting(props: { chat: ChatController }) {
           <input
             type="range"
             min="0"
-            max={effort.length - 1}
+            max={effort().length - 1}
             step="1"
-            value={effort.indexOf(chat.settings.effort ?? "")}
-            onInput={(e) => chat.setSetting("effort", effort[Number(e.currentTarget.value)])}
+            value={effort().indexOf(chat.settings.effort ?? "")}
+            onInput={(e) => chat.setSetting("effort", effort()[Number(e.currentTarget.value)])}
           />
           <span class="lc-ticks">
-            <For each={effort}>{(v) => <span>{v}</span>}</For>
+            <For each={effort()}>{(v) => <span>{v}</span>}</For>
           </span>
         </label>
       )}
