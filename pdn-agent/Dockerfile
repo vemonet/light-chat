@@ -26,8 +26,8 @@ COPY pdn-agent pdn-agent
 COPY --from=js /repo/packages/js/dist/index.js packages/python/src/light_chat/static/light-chat.js
 RUN uv sync --frozen --no-editable --package pdn-agent
 
-# Non-root user
-RUN useradd --create-home --uid 1000 app
+# Non-root user, owning the folder of the request log
+RUN useradd --create-home --uid 1000 app && mkdir -p /app/pdn-agent/data && chown app /app/pdn-agent/data
 USER app
 WORKDIR /app/pdn-agent
 ENV PATH="/app/.venv/bin:$PATH"

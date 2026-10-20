@@ -175,10 +175,14 @@ async def split_provenance(
                 if not in_step:
                     step, in_step = step + 1, True
                 name = e.tool_call_name
+                server = tool_servers.get(name)
+                # The chat shows the MCP server in front of the tool name
+                if server:
+                    e.metadata = {**(e.metadata or {}), "server": server}
                 calls[e.tool_call_id] = Call(
                     id=e.tool_call_id,
                     name=name,
-                    server=tool_servers.get(name),
+                    server=server,
                     step=step,
                     args="",
                     status="running",

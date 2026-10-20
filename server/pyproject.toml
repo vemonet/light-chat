@@ -1,13 +1,11 @@
 [project]
 name = "uniprot-agent"
 version = "0.0.1"
-description = "UniProt MCP server and AG-UI chat endpoint"
+description = "AG-UI chat endpoint of an agent using the ExPASy MCP server"
 requires-python = ">=3.13"
 dependencies = [
   "light-chat[mcp-apps]",
   "fastapi >=0.142.2",
-  "httpx2 >=2.13.1",
-  "mcp >=2.3.0",
   "pydantic-ai-slim[ag-ui,anthropic,mcp,openai] >=2.54.0",
   "uvicorn[standard] >=0.54.0",
   "pydantic-settings >=2.15.0",

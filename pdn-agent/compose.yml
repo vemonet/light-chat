@@ -10,4 +10,7 @@ services:
       ALLOWED_HOSTS: biosoda.unil.ch
     ports:
       - "8084:8000"
+    # Request log, the host folder must be writable by uid 1000
+    volumes:
+      - ./data:/app/pdn-agent/data
     restart: unless-stopped

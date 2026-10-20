@@ -1,22 +1,17 @@
-"""FastAPI app exposing a UniProt MCP server, an AG-UI agent using it, and a chat UI."""
+"""FastAPI app exposing an AG-UI agent using the ExPASy and Excalidraw MCP servers, and a chat UI."""
 
 import os
-from contextlib import asynccontextmanager
-from typing import Annotated, TypedDict
+from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from light_chat import chat_router, setup_logging
 from light_chat.mcp_apps import PROXIED_REQUEST, UIToolset, proxied_response
-from mcp.server.mcpserver import MCPServer
-from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import BeforeValidator, SecretStr
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 from pydantic_settings import BaseSettings, NoDecode
-
-from uniprot_apps import UNIPROT_API, apps, fetch_entry, get, http_client
 
 # Logs of all libraries in the uvicorn style, without a line per HTTP request
 setup_logging()
@@ -43,10 +38,6 @@ class Settings(BaseSettings):
         "anthropic/claude-haiku-5.5",
         "openai/gpt-6-luna",
     ]
-    # UniProt MCP server used by the agent: the one of this app, called in-process, unless an URL is set
-    mcp_url: str | None = None
-    # Public hostnames of the app behind a reverse proxy (e.g. `chat.example.org`), accepted by `/mcp` besides localhost
-    allowed_hosts: CommaList = []
 
 
 settings = Settings()
@@ -55,75 +46,10 @@ provider = OpenAIProvider(
     api_key=settings.openai_api_key.get_secret_value() if settings.openai_api_key else None,
 )
 
-# MCP server with UniProt tools, and tools showing widgets (MCP Apps) from `uniprot_apps.py`
-mcp = MCPServer("uniprot", instructions="Query the UniProt protein knowledgebase", extensions=[apps])
-
-
-class ProteinSummary(TypedDict):
-    accession: str
-    name: str | None
-    genes: list[str]
-    organism: str | None
-    length: int | None
-
-
-class Protein(TypedDict):
-    accession: str
-    name: str | None
-    organism: str | None
-    function: list[str]
-    sequence: str | None
-
-
-# Typed results give the tools an output schema
-@mcp.tool()
-async def search_proteins(query: str, size: int = 5) -> list[ProteinSummary]:
-    """Search UniProtKB entries, returns accession, name, genes, organism. Query syntax: `gene_exact:INS`,
-    `protein_name:kinase`, `organism_id:9606` (one species), `taxonomy_name:mammalia` (a clade with its
-    descendants, by name), `reviewed:true`, `cc_disease:*`, combined with AND, OR, NOT"""
-    params = {
-        "query": query,
-        "size": size,
-        "fields": "accession,protein_name,gene_names,organism_name,length",
-    }
-    async with http_client() as client:
-        res = await get(client, f"{UNIPROT_API}/search", params)
-    # Invalid queries are explained to the model, which can fix them
-    if res.status_code == 400:
-        raise ValueError(f"Invalid query: {', '.join(res.json().get('messages', []))}")
-    res.raise_for_status()
-    return [
-        ProteinSummary(
-            accession=e["primaryAccession"],
-            name=e.get("proteinDescription", {}).get("recommendedName", {}).get("fullName", {}).get("value"),
-            genes=[g["geneName"]["value"] for g in e.get("genes", []) if "geneName" in g],
-            organism=e.get("organism", {}).get("scientificName"),
-            length=e.get("sequence", {}).get("length"),
-        )
-        for e in res.json()["results"]
-    ]
-
-
-@mcp.tool()
-async def get_protein(accession: str) -> Protein:
-    """Get a UniProtKB entry by accession (e.g. P01308): name, organism, function and sequence"""
-    async with http_client() as client:
-        e = await fetch_entry(client, accession)
-    return Protein(
-        accession=e["primaryAccession"],
-        name=e.get("proteinDescription", {}).get("recommendedName", {}).get("fullName", {}).get("value"),
-        organism=e.get("organism", {}).get("scientificName"),
-        function=[
-            t["value"] for c in e.get("comments", []) if c["commentType"] == "FUNCTION" for t in c.get("texts", [])
-        ],
-        sequence=e.get("sequence", {}).get("value"),
-    )
-
-
-# Agent using the tools of the UniProt and Excalidraw MCP servers, the model is set per request.
+# Agent using the tools of the ExPASy and Excalidraw MCP servers, the model is set per request.
 # Results of all tools are sent to the chat, which shows the ones with a UI
 ui_toolsets = [
-    UIToolset(settings.mcp_url or mcp, id="uniprot"),
+    UIToolset("https://chat.expasy.org/mcp/", id="expasy"),
     UIToolset("https://mcp.excalidraw.com/mcp", id="excalidraw"),
 ]
 # Failed tool calls are sent back to the model a few times, e.g. to fix an invalid UniProt query
@@ -135,7 +61,8 @@ def instructions(ctx: RunContext[str]) -> str:
     """One system prompt (some models reject several), with the context sent by the frontend (AG-UI `context`),
     e.g. the state of a widget edited by the user"""
     prompt = (
-        "You are a helpful assistant answering questions about proteins using the UniProt tools. "
+        "You are a helpful assistant answering questions about proteins using the UniProt tools, "
+        "and the SPARQL tools for UniProt, Rhea, Bgee and other SIB resources. "
         "Some tools display interactive UIs to the user, e.g. protein features, 3D structures, search results tables "
         "or Excalidraw diagrams. Prefer them to show features, structures or long lists of proteins, "
         "and do not repeat in text what they show."
@@ -143,14 +70,7 @@ def instructions(ctx: RunContext[str]) -> str:
     return f"{prompt}\n\n{ctx.deps}" if ctx.deps else prompt
 
 
-# The MCP session manager must run for the whole app lifetime
-@asynccontextmanager
-async def lifespan(_app: FastAPI):
-    async with mcp.session_manager.run():
-        yield
-
-
-app = FastAPI(title="UniProt agent", lifespan=lifespan)
+app = FastAPI(title="UniProt agent")
 
 
 @app.post("/chat")
@@ -203,17 +123,4 @@ app.include_router(
             # add AKT between IRS1 and GLUT4, look it up in UniProt first
         ],
     )
-)
-# The MCP SDK only accepts localhost Host and Origin headers (DNS rebinding protection), and answers
-# "Invalid Host header" to requests forwarded by a reverse proxy: the public hostnames are added to the allowed ones
-local_hosts = ["127.0.0.1", "localhost", "[::1]"]
-transport_security = TransportSecuritySettings(
-    allowed_hosts=[f"{h}:*" for h in local_hosts] + settings.allowed_hosts,
-    allowed_origins=[f"http://{h}:*" for h in local_hosts]
-    + [f"{scheme}://{h}" for h in settings.allowed_hosts for scheme in ("https", "http")],
-)
-# Mounted last at the root: it serves `/mcp` and would otherwise shadow the routes above
-app.mount(
-    "/",
-    mcp.streamable_http_app(stateless_http=True, json_response=True, transport_security=transport_security),
 )

@@ -33,6 +33,8 @@ export interface ToolPart extends Timing {
   type: "tool";
   id: string;
   name: string;
+  /** MCP server providing the tool, shown before its name */
+  server?: string;
   /** Raw JSON arguments, accumulated while streaming */
   args: string;
   result?: string;
@@ -92,7 +94,7 @@ export interface Message {
 export type ChatEvent = (
   | { type: "text"; delta: string }
   | { type: "reasoning"; delta: string }
-  | { type: "tool-start"; id: string; name: string }
+  | { type: "tool-start"; id: string; name: string; server?: string }
   | { type: "tool-args"; id: string; delta: string }
   | { type: "tool-result"; id: string; result: unknown }
   | { type: "step-start"; name: string }

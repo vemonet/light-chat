@@ -86,7 +86,7 @@ function apply(msg: Message, e: ChatEvent) {
       else push({ type: "reasoning", text: e.delta, startedAt: now });
       break;
     case "tool-start":
-      push({ type: "tool", id: e.id, name: e.name, args: "", status: "running", startedAt: now });
+      push({ type: "tool", id: e.id, name: e.name, server: e.server, args: "", status: "running", startedAt: now });
       break;
     case "tool-args": {
       const t = tool(e.id);

@@ -1,4 +1,4 @@
-# Demo server: UniProt MCP server, AG-UI agent and chat UI. Built from the repo root:
+# Demo server: AG-UI agent using the ExPASy MCP server, and chat UI. Built from the repo root:
 # docker build -f server/Dockerfile -t light-chat-server .
 
 # JS bundle of the chat UI
@@ -32,7 +32,7 @@ USER app
 WORKDIR /app/server
 ENV PATH="/app/.venv/bin:$PATH"
 EXPOSE 8000
-# Number of uvicorn worker processes, the app is stateless (MCP server in stateless HTTP mode)
+# Number of uvicorn worker processes, the app is stateless
 ENV WEB_CONCURRENCY=4
 HEALTHCHECK CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/models')"
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]

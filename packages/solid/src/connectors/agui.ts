@@ -130,7 +130,8 @@ export class AgUiConnector extends HttpConnector {
           break;
         case "TOOL_CALL_START":
           lastTool = e.toolCallId;
-          yield { type: "tool-start", id: e.toolCallId, name: e.toolCallName };
+          // MCP server of the tool, when the backend sets it in the event metadata
+          yield { type: "tool-start", id: e.toolCallId, name: e.toolCallName, server: e.metadata?.server };
           break;
         case "TOOL_CALL_ARGS":
           yield { type: "tool-args", id: e.toolCallId, delta: e.delta };
@@ -139,7 +140,7 @@ export class AgUiConnector extends HttpConnector {
           // First chunk carries id and name, following ones only the args delta
           if (e.toolCallName && e.toolCallId !== lastTool) {
             lastTool = e.toolCallId ?? `call_${uid()}`;
-            yield { type: "tool-start", id: lastTool, name: e.toolCallName };
+            yield { type: "tool-start", id: lastTool, name: e.toolCallName, server: e.metadata?.server };
           }
           if (e.delta) yield { type: "tool-args", id: e.toolCallId ?? lastTool, delta: e.delta };
           break;

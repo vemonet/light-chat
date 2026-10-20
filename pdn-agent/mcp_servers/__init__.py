@@ -2,13 +2,12 @@
 
 from mcp.server.mcpserver import MCPServer
 
-from . import brc_analytics, geo, mygene, myvariant, pdn, pubmed, string, uniprot
+from . import brc_analytics, geo, mygene, myvariant, pdn, pubmed, string
 from .ncbi import server as ncbi
 from .nde import server as nde
 
 MCP_SERVERS: dict[str, MCPServer] = {
     "pdn": pdn.mcp,
-    "uniprot": uniprot.mcp,
     "mygene": mygene.mcp,
     "myvariant": myvariant.mcp,
     "ncbi": ncbi.server,

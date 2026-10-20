@@ -1637,9 +1637,7 @@ version = "0.0.1"
 source = { virtual = "server" }
 dependencies = [
     { name = "fastapi" },
-    { name = "httpx2" },
     { name = "light-chat", extra = ["mcp-apps"] },
-    { name = "mcp" },
     { name = "pydantic-ai-slim", extra = ["ag-ui", "anthropic", "mcp", "openai"] },
     { name = "pydantic-settings" },
     { name = "uvicorn", extra = ["standard"] },
@@ -1648,9 +1646,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.142.2" },
-    { name = "httpx2", specifier = ">=2.13.1" },
     { name = "light-chat", extras = ["mcp-apps"], editable = "packages/python" },
-    { name = "mcp", specifier = ">=2.3.0" },
     { name = "pydantic-ai-slim", extras = ["ag-ui", "anthropic", "mcp", "openai"], specifier = ">=2.54.0" },
     { name = "pydantic-settings", specifier = ">=2.15.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },

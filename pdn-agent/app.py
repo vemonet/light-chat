@@ -1,12 +1,24 @@
 """FastAPI app exposing the MCP servers of the federated data ecosystem, an AG-UI agent using them, and a chat UI."""
 
 import asyncio
+import json
 import logging
 import os
 import time
+from collections.abc import AsyncIterator
 from contextlib import AsyncExitStack, asynccontextmanager
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Annotated, Any
 
+from ag_ui.core import (
+    BaseEvent,
+    RunErrorEvent,
+    TextMessageContentEvent,
+    ToolCallArgsEvent,
+    ToolCallResultEvent,
+    ToolCallStartEvent,
+)
 from fastapi import FastAPI, HTTPException, Request, Response
 from light_chat import chat_router, setup_logging
 from light_chat.mcp_apps import PROXIED_REQUEST, UIToolset, proxied_response, ui_meta
@@ -53,6 +65,8 @@ class Settings(BaseSettings):
     ]
     # Public hostnames of the app behind a reverse proxy (e.g. `pdn.example.org`)
     allowed_hosts: CommaList = []
+    # JSONL file where each chat request is appended with its response
+    log_file: Path = Path("data/pdn_agent_logs.jsonl")
 
 
 settings = Settings()
@@ -133,7 +147,7 @@ async def available_remote_toolsets() -> list[MCPToolset]:
 
 
 def log_servers(kind: str, tools: dict[str, int]) -> None:
-    """One line listing MCP servers with their number of tools, e.g. `pdn (12) · uniprot (8)`"""
+    """One line listing MCP servers with their number of tools, e.g. `pdn (12) · mygene (8)`"""
     servers = " · ".join(f"{id} ({n})" for id, n in tools.items())
     logger.info(f"{len(tools)} {kind} MCP servers, {sum(tools.values())} tools: {servers}")
 
@@ -167,6 +181,48 @@ def last_user_text(body: dict) -> str | None:
     return content
 
 
+async def log_run(events: AsyncIterator[BaseEvent], model: str, question: str | None) -> AsyncIterator[BaseEvent]:
+    """Pass the events through, and append the question, answer, provenance and tool calls of the run to the log
+    file once it ends, also when it fails or the client disconnects"""
+    start = time.monotonic()
+    answer, provenance, error = "", "", None
+    tool_calls: dict[str, dict[str, Any]] = {}
+    try:
+        async for e in events:
+            if isinstance(e, TextMessageContentEvent):
+                # The provenance is streamed in a sub-agent message
+                if e.subagent_run_id:
+                    provenance += e.delta
+                else:
+                    answer += e.delta
+            elif isinstance(e, ToolCallStartEvent):
+                tool_calls[e.tool_call_id] = {"name": e.tool_call_name, "args": "", "result": None}
+            elif isinstance(e, ToolCallArgsEvent) and e.tool_call_id in tool_calls:
+                tool_calls[e.tool_call_id]["args"] += e.delta
+            elif isinstance(e, ToolCallResultEvent) and e.tool_call_id in tool_calls:
+                tool_calls[e.tool_call_id]["result"] = e.content
+            elif isinstance(e, RunErrorEvent):
+                error = e.message
+            yield e
+    finally:
+        entry = {
+            "timestamp": datetime.now(UTC).isoformat(),
+            "duration": round(time.monotonic() - start, 2),
+            "model": model,
+            "question": question,
+            "answer": answer,
+            "provenance": provenance,
+            "tool_calls": list(tool_calls.values()),
+            "error": error,
+        }
+        try:
+            settings.log_file.parent.mkdir(parents=True, exist_ok=True)
+            with settings.log_file.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        except OSError as e:
+            logger.warning(f"Could not write the request log to {settings.log_file}: {e!r}")
+
+
 @app.post("/chat")
 async def chat(request: Request) -> Response:
     """AG-UI endpoint streaming the agent response, with the model picked in `forwardedProps.model`.
@@ -183,7 +239,9 @@ async def chat(request: Request) -> Response:
     adapter = await AGUIAdapter[str, str].from_request(request, agent=agent)
     toolsets = await available_remote_toolsets()
     events = adapter.run_stream(model=OpenAIChatModel(model, provider=provider), deps=context, toolsets=toolsets)
-    return adapter.streaming_response(split_provenance(events, tool_servers, last_user_text(body), model))
+    question = last_user_text(body)
+    events = log_run(split_provenance(events, tool_servers, question, model), model, question)
+    return adapter.streaming_response(events)
 
 
 @app.get("/models")

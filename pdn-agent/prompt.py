@@ -10,7 +10,8 @@ Start from the resource that owns the data type, rather than searching whatever
 tool comes first:
 - Pathogen sequences, mutations and lineages over time: prefer PDN (LAPIS).
 - Gene annotation and function: prefer MyGene.
-- Protein sequences and disease associations: prefer UniProt.
+- Protein sequences, features, structures, variants and disease associations:
+  prefer the UniProt tools of ExPASy.
 - Variant annotation: prefer MyVariant.
 - Sequencing data and BioSamples: prefer NCBI.
 - Antimicrobial resistance of bacterial isolates: prefer NCBI Pathogen Detection.

@@ -6,20 +6,19 @@ FastAPI app federating biological data resources through MCP servers, for light-
 
 - `/<server>/mcp`: MCP servers (streamable HTTP), in [`mcp_servers/`](mcp_servers), ported from the codeathon repo to MCP Python SDK 2:
 
-  | Path                 | Resource                                                                                                            | Tools                                                                            |
-  | -------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-  | `/pdn/mcp`           | [Pathogen Data Network](https://pathoplexus.org) sequences and metadata through LAPIS                               | `lapis_*`, `show_lapis_*`                                                        |
-  | `/uniprot/mcp`       | [UniProt](https://www.uniprot.org) proteins                                                                         | `uniprot_*`, `show_protein_*`, `show_annotation_matrix`, `search_proteins_table` |
-  | `/mygene/mcp`        | [MyGene.info](https://mygene.info) gene annotation                                                                  | `mygene_*`, `show_gene_card`                                                     |
-  | `/myvariant/mcp`     | [MyVariant.info](https://myvariant.info) variant annotation                                                         | `myvariant_*`, `show_variant_card`                                               |
-  | `/ncbi/mcp`          | [NCBI E-utilities](https://www.ncbi.nlm.nih.gov/books/NBK25501/) and Pathogen Detection AMR isolates                | `ncbi_*`, `show_pathogen_isolates_table`, `show_amr_heatmap`                     |
-  | `/pubmed/mcp`        | [PubMed](https://pubmed.ncbi.nlm.nih.gov) literature, as context only                                               | `pubmed_*`                                                                       |
-  | `/geo/mcp`           | [GEO](https://www.ncbi.nlm.nih.gov/geo/) gene expression studies and their processed files                          | `geo_*`, `show_geo_series`                                                       |
-  | `/nde/mcp`           | [NIAID Data Ecosystem](https://data.niaid.nih.gov) datasets and tools                                               | `nde_*`, `search_datasets_table`                                                 |
-  | `/brc-analytics/mcp` | [BRC Analytics](https://brc-analytics.org) ENA sequencing runs and workflows, complementing their public MCP server | `brc_ena_*`, `show_brc_workflow_matrix`                                          |
-  | `/string/mcp`        | [STRING](https://string-db.org) protein networks, complementing their public MCP server                             | `show_string_network`                                                            |
+  | Path                 | Resource                                                                                                            | Tools                                                        |
+  | -------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+  | `/pdn/mcp`           | [Pathogen Data Network](https://pathoplexus.org) sequences and metadata through LAPIS                               | `lapis_*`, `show_lapis_*`                                    |
+  | `/mygene/mcp`        | [MyGene.info](https://mygene.info) gene annotation                                                                  | `mygene_*`, `show_gene_card`                                 |
+  | `/myvariant/mcp`     | [MyVariant.info](https://myvariant.info) variant annotation                                                         | `myvariant_*`, `show_variant_card`                           |
+  | `/ncbi/mcp`          | [NCBI E-utilities](https://www.ncbi.nlm.nih.gov/books/NBK25501/) and Pathogen Detection AMR isolates                | `ncbi_*`, `show_pathogen_isolates_table`, `show_amr_heatmap` |
+  | `/pubmed/mcp`        | [PubMed](https://pubmed.ncbi.nlm.nih.gov) literature, as context only                                               | `pubmed_*`                                                   |
+  | `/geo/mcp`           | [GEO](https://www.ncbi.nlm.nih.gov/geo/) gene expression studies and their processed files                          | `geo_*`, `show_geo_series`                                   |
+  | `/nde/mcp`           | [NIAID Data Ecosystem](https://data.niaid.nih.gov) datasets and tools                                               | `nde_*`, `search_datasets_table`                             |
+  | `/brc-analytics/mcp` | [BRC Analytics](https://brc-analytics.org) ENA sequencing runs and workflows, complementing their public MCP server | `brc_ena_*`, `show_brc_workflow_matrix`                      |
+  | `/string/mcp`        | [STRING](https://string-db.org) protein networks, complementing their public MCP server                             | `show_string_network`                                        |
 
-- `/chat`: AG-UI endpoint, a Pydantic AI agent using the MCP servers of the app, called in-process, and the public MCP servers of [STRING](https://mcp.string-db.org), [ExPASy](https://chat.expasy.org/mcp), [BRC Analytics](https://brc-analytics.org/api/v1/mcp/) and [Excalidraw](https://mcp.excalidraw.com/mcp). Public servers not answering are skipped, and checked again after 5 minutes
+- `/chat`: AG-UI endpoint, a Pydantic AI agent using the MCP servers of the app, called in-process, and the public MCP servers of [STRING](https://mcp.string-db.org), [ExPASy](https://chat.expasy.org/mcp) (SPARQL over SIB resources, and the UniProt tools and widgets), [BRC Analytics](https://brc-analytics.org/api/v1/mcp/) and [Excalidraw](https://mcp.excalidraw.com/mcp). Public servers not answering are skipped, and checked again after 5 minutes
 - `/`: chat UI from the [`light-chat` Python package](../packages/python/README.md)
 
 The BV-BRC MCP server of the codeathon repo is not included, it requires an authentication.
@@ -109,11 +108,3 @@ STRING ([`mcp_servers/string.py`](mcp_servers/string.py)), MyGene ([`mcp_servers
 - `show_string_network`: [Cytoscape.js](https://js.cytoscape.org) network of the proteins, edges colored by their main evidence channel, nodes by cluster
 - `show_gene_card`: summary, chromosome position and gene structure, GO terms and orthologs of a gene
 - `show_variant_card`: ClinVar significance, gnomAD frequencies by population and prediction scores of a variant
-
-UniProt ([`mcp_servers/uniprot_apps.py`](mcp_servers/uniprot_apps.py)), loading structures from AlphaFold DB and PDBe:
-
-- `show_protein_features`: [Nightingale](https://github.com/ebi-webcomponents/nightingale) tracks of domains, sites, PTMs, processing, topology, secondary structure and variants, zoomable along the sequence. Clicking a feature shows its details and evidence
-- `show_protein_structure`: AlphaFold model colored by pLDDT, or a PDB entry, in Mol\* ([PDBe Molstar](https://github.com/molstar/pdbe-molstar)), next to the features list: clicking one highlights its residues. Residues can be highlighted from the start, e.g. a mutation
-- `search_proteins_table`: results of a UniProtKB query (up to 1000 rows) in a sortable table with facets for reviewed status, annotation score and organism. The model only gets a summary, the rows selected by the user are sent back as context, with a prompt
-- `show_protein_variants`: disease and natural variants of the [EBI Proteins API](https://www.ebi.ac.uk/proteins/api/doc/) positioned on the sequence next to the domains, in the Nightingale variation viewer, filterable by consequence, clinical significance, evidence and disease. Clicking a variant shows its links to ClinVar, dbSNP and PubMed
-- `show_annotation_matrix`: heatmap of the proteins of a gene list by GO terms, keywords or Reactome pathways, shaded by GO evidence, for a quick functional overview without an enrichment tool

@@ -119,13 +119,19 @@ const humanize = (name: string) => {
   return words.charAt(0).toUpperCase() + words.slice(1);
 };
 
+/** Tool label with its MCP server, e.g. "Expasy: search sparql examples" */
+const toolLabel = (t: ToolPart) => {
+  const name = humanize(t.name) || "Tool";
+  return t.server ? `${humanize(t.server)}: ${name.charAt(0).toLowerCase()}${name.slice(1)}` : name;
+};
+
 export function ToolCall(props: { part: ToolPart }) {
   return (
     <Collapsible
       icon={<ToolIcon />}
       active={props.part.status === "running"}
       timing={props.part}
-      label={humanize(props.part.name) || "Tool"}
+      label={toolLabel(props.part)}
     >
       {() => (
         <>
@@ -308,7 +314,7 @@ function StepView(props: { part: Step; active: boolean }) {
 function runningLabel(step: Step) {
   switch (step.type) {
     case "tool":
-      return humanize(step.name) || "Tool";
+      return toolLabel(step);
     case "step":
       return humanize(step.name) || "Step";
     case "subagent":

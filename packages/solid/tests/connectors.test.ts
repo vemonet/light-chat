@@ -134,7 +134,7 @@ test("agui connector maps text, tool calls and results", async () => {
     { type: "RUN_STARTED" },
     { type: "TEXT_MESSAGE_START", messageId: "m1" },
     { type: "TEXT_MESSAGE_CONTENT", messageId: "m1", delta: "Hi" },
-    { type: "TOOL_CALL_START", toolCallId: "t1", toolCallName: "search" },
+    { type: "TOOL_CALL_START", toolCallId: "t1", toolCallName: "search", metadata: { server: "expasy" } },
     { type: "TOOL_CALL_ARGS", toolCallId: "t1", delta: "{}" },
     { type: "TOOL_CALL_END", toolCallId: "t1" },
     { type: "TOOL_CALL_RESULT", toolCallId: "t1", content: "ok" },
@@ -142,7 +142,7 @@ test("agui connector maps text, tool calls and results", async () => {
   ]);
   expect(await collect(new AgUiConnector({ url: "http://test" }), ctx([withFiles], { model: "m1" }))).toEqual([
     { type: "text", delta: "Hi" },
-    { type: "tool-start", id: "t1", name: "search" },
+    { type: "tool-start", id: "t1", name: "search", server: "expasy" },
     { type: "tool-args", id: "t1", delta: "{}" },
     { type: "tool-result", id: "t1", result: "ok" },
     { type: "error", message: "boom" },
