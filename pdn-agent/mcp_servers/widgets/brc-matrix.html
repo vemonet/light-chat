@@ -264,8 +264,20 @@
     <div class="details muted" id="details">Click a cell, an assembly or a workflow for details</div>
 
     <script src="colors.js"></script>
-    <script src="bridge.js"></script>
-    <script>
+    <script type="module">
+      import {
+        App,
+        applyDocumentTheme,
+      } from "https://cdn.jsdelivr.net/npm/@modelcontextprotocol/ext-apps@2.0.3/dist/src/app-with-deps.js";
+
+      // Connection to the host with the MCP Apps SDK
+      const app = new App(
+        { name: "BRC Analytics workflow matrix", version: "0.0.1" },
+        { availableDisplayModes: ["inline", "fullscreen"] },
+      );
+      const sendMessage = (text) => app.sendMessage({ role: "user", content: [{ type: "text", text }] });
+      const updateContext = (text) => app.updateModelContext({ content: [{ type: "text", text }] });
+
       const $ = (id) => document.getElementById(id);
       const SITE = "https://brc-analytics.org";
       const PALETTE = ["#2e86c1", "#27ae60", "#8e44ad", "#d35400", "#c0392b", "#16a085", "#b7950b", "#5d6d7e"];
@@ -404,14 +416,14 @@
               ${s === "ploidy" || s === "taxonomy" ? "" : button("configure", "Configure on BRC Analytics")}
               ${button("workflow", "Workflow page")}</div>`;
           $("ask").onclick = () =>
-            mcpApp.message(
+            sendMessage(
               s === "ready" || s === "no_gene_model"
                 ? `How do I run the BRC Analytics workflow "${w.name}" (${w.iwcId}) on the ${label(a)} assembly ${a.accession}? Which sequencing data can I use as input?`
                 : `The BRC Analytics workflow "${w.name}" (${w.iwcId}) is not compatible with the ${label(a)} assembly ${a.accession} (${reason(a, w)}). Which workflow can I use instead?`,
             );
-          if ($("configure")) $("configure").onclick = () => mcpApp.openLink(urls.configure(a, w));
-          $("workflow").onclick = () => mcpApp.openLink(urls.workflow(w));
-          void mcpApp.context(
+          if ($("configure")) $("configure").onclick = () => app.openLink({ url: urls.configure(a, w) });
+          $("workflow").onclick = () => app.openLink({ url: urls.workflow(w) });
+          void updateContext(
             `The user selected the BRC Analytics workflow "${w.name}" (${w.iwcId}) on assembly ${a.accession} (${label(a)}): ${text}${reason(a, w) ? `, ${reason(a, w)}` : ""}`,
           );
         } else if (kind === "assembly") {
@@ -427,10 +439,10 @@
               <dt>Links</dt><dd>${[link(urls.assembly(a), "BRC Analytics"), link(urls.ncbi(a), "NCBI"), a.ucscUrl ? link(a.ucscUrl, "UCSC browser") : ""].filter(Boolean).join(" · ")}</dd></dl>
             <div class="actions">${button("ask", "Ask about it", true)}</div>`;
           $("ask").onclick = () =>
-            mcpApp.message(
+            sendMessage(
               `Which analyses can I run on the ${label(a)} assembly ${a.accession} in BRC Analytics, and with which data?`,
             );
-          void mcpApp.context(
+          void updateContext(
             `The user selected the BRC Analytics assembly ${a.accession} (${label(a)}, ${a.level}${a.isRef ? ", reference" : ""}), ready to run ${ready.length} workflows`,
           );
         } else {
@@ -447,11 +459,11 @@
               <dt>Ready on</dt><dd>${ok.length} of ${data.assemblies.length} assemblies</dd></dl>
             <div class="actions">${button("ask", "Ask about it", true)} ${button("workflow", "Workflow page")}</div>`;
           $("ask").onclick = () =>
-            mcpApp.message(
+            sendMessage(
               `What does the BRC Analytics workflow "${w.name}" (${w.iwcId}) do, and on which ${data.organisms.map((o) => o.species).join(", ")} assemblies can I run it?`,
             );
-          $("workflow").onclick = () => mcpApp.openLink(urls.workflow(w));
-          void mcpApp.context(
+          $("workflow").onclick = () => app.openLink({ url: urls.workflow(w) });
+          void updateContext(
             `The user selected the BRC Analytics workflow "${w.name}" (${w.iwcId}), ready on ${ok.length} assemblies`,
           );
         }
@@ -478,23 +490,41 @@
       });
       $("details").addEventListener("click", (e) => {
         const url = e.target.closest("[data-url]")?.dataset.url;
-        if (url) void mcpApp.openLink(url);
+        if (url) void app.openLink({ url });
       });
       $("filter").oninput = render;
       $("category").onchange = render;
       $("hide").onchange = render;
       $("site").onclick = () =>
         data &&
-        mcpApp.openLink(
-          data.organisms.length === 1 ? urls.organism(data.organisms[0].taxonomyId) : `${SITE}/data/organisms`,
-        );
-      $("fullscreen").onclick = () =>
-        mcpApp.displayMode(document.documentElement.dataset.mode === "fullscreen" ? "inline" : "fullscreen");
-      mcpApp.on("hostContext", (ctx) => {
-        $("fullscreen").textContent = ctx.displayMode === "fullscreen" ? "Exit full screen" : "Full screen";
-      });
+        app.openLink({
+          url: data.organisms.length === 1 ? urls.organism(data.organisms[0].taxonomyId) : `${SITE}/data/organisms`,
+        });
+      // Theme and display mode of the host as attributes on <html> for the CSS
+      function onContext(ctx) {
+        if (ctx.theme) applyDocumentTheme(ctx.theme);
+        if (ctx.displayMode) {
+          document.documentElement.dataset.mode = ctx.displayMode;
+          $("fullscreen").textContent = ctx.displayMode === "fullscreen" ? "Exit full screen" : "Full screen";
+        }
+      }
+      app.onhostcontextchanged = onContext;
+      // The host answers with the mode set, it may not send a context change
+      $("fullscreen").onclick = async () => {
+        const mode = document.documentElement.dataset.mode === "fullscreen" ? "inline" : "fullscreen";
+        onContext({ displayMode: (await app.requestDisplayMode({ mode })).mode });
+      };
 
-      mcpApp.on("result", (result) => {
+      // Tool arguments, to call the tool again when the result has no `structuredContent`, as Claude Desktop
+      // gives to widgets restored after a reload of the chat
+      let toolArgs;
+      app.ontoolinput = (params) => (toolArgs = params.arguments);
+      app.ontoolresult = async (result) => {
+        if (!result.structuredContent && !result.isError && toolArgs) {
+          result = await app
+            .callServerTool({ name: "show_brc_workflow_matrix", arguments: toolArgs })
+            .catch(() => result);
+        }
         data = result.structuredContent;
         if (!data) return ($("title").textContent = "No workflows");
         data.workflows.forEach((w, i) => (w.index = i));
@@ -510,8 +540,15 @@
           data.categories.map((c) => `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}</option>`).join("");
         renderLegend();
         render();
-      });
-      mcpApp.start("BRC Analytics workflow matrix");
+      };
+
+      await app.connect();
+      // Full screen button only when the host offers it
+      const host = app.getHostContext() ?? {};
+      $("fullscreen").hidden = Boolean(
+        host.availableDisplayModes && !host.availableDisplayModes.includes("fullscreen"),
+      );
+      onContext(host);
     </script>
   </body>
 </html>

@@ -198,8 +198,20 @@
     </div>
 
     <script src="colors.js"></script>
-    <script src="bridge.js"></script>
-    <script>
+    <script type="module">
+      import {
+        App,
+        applyDocumentTheme,
+      } from "https://cdn.jsdelivr.net/npm/@modelcontextprotocol/ext-apps@2.0.3/dist/src/app-with-deps.js";
+
+      // Connection to the host with the MCP Apps SDK
+      const app = new App(
+        { name: "NDE search results", version: "0.0.1" },
+        { availableDisplayModes: ["inline", "fullscreen"] },
+      );
+      const sendMessage = (text) => app.sendMessage({ role: "user", content: [{ type: "text", text }] });
+      const updateContext = (text) => app.updateModelContext({ content: [{ type: "text", text }] });
+
       const $ = (id) => document.getElementById(id);
       let rows = [];
       let data;
@@ -341,12 +353,12 @@
         const text = list.length
           ? `The user selected ${list.length} records in the NDE search results table: ` + list.map(describe).join("; ")
           : "The user has not selected records in the NDE search results table";
-        void mcpApp.context(text);
+        void updateContext(text);
       }
 
       $("rows").addEventListener("click", (e) => {
         const a = e.target.closest("a[data-url]");
-        if (a) return void mcpApp.openLink(a.dataset.url);
+        if (a) return void app.openLink({ url: a.dataset.url });
         const tr = e.target.closest("tr");
         if (!tr) return;
         const id = tr.dataset.id;
@@ -379,20 +391,36 @@
       $("send").onclick = () => {
         const list = rows.filter((r) => selected.has(r.id));
         const prompt = $("prompt").value.trim() || "Summarize these datasets";
-        void mcpApp.message(`${prompt}: ${list.map((r) => `${r.id} (${r.name})`).join(", ")}`);
+        void sendMessage(`${prompt}: ${list.map((r) => `${r.id} (${r.name})`).join(", ")}`);
         $("prompt").value = "";
       };
       // Block body: a handler returning false would cancel every key typed
       $("prompt").onkeydown = (e) => {
         if (e.key === "Enter" && !$("send").disabled) $("send").click();
       };
-      $("fullscreen").onclick = () =>
-        mcpApp.displayMode(document.documentElement.dataset.mode === "fullscreen" ? "inline" : "fullscreen");
-      mcpApp.on("hostContext", (ctx) => {
-        $("fullscreen").textContent = ctx.displayMode === "fullscreen" ? "Exit full screen" : "Full screen";
-      });
+      // Theme and display mode of the host as attributes on <html> for the CSS
+      function onContext(ctx) {
+        if (ctx.theme) applyDocumentTheme(ctx.theme);
+        if (ctx.displayMode) {
+          document.documentElement.dataset.mode = ctx.displayMode;
+          $("fullscreen").textContent = ctx.displayMode === "fullscreen" ? "Exit full screen" : "Full screen";
+        }
+      }
+      app.onhostcontextchanged = onContext;
+      // The host answers with the mode set, it may not send a context change
+      $("fullscreen").onclick = async () => {
+        const mode = document.documentElement.dataset.mode === "fullscreen" ? "inline" : "fullscreen";
+        onContext({ displayMode: (await app.requestDisplayMode({ mode })).mode });
+      };
 
-      mcpApp.on("result", (result) => {
+      // Tool arguments, to call the tool again when the result has no `structuredContent`, as Claude Desktop
+      // gives to widgets restored after a reload of the chat
+      let toolArgs;
+      app.ontoolinput = (params) => (toolArgs = params.arguments);
+      app.ontoolresult = async (result) => {
+        if (!result.structuredContent && !result.isError && toolArgs) {
+          result = await app.callServerTool({ name: "search_datasets_table", arguments: toolArgs }).catch(() => result);
+        }
         data = result.structuredContent;
         if (!data) return ($("title").textContent = "No results");
         rows = data.rows;
@@ -404,8 +432,15 @@
           .map(([k, v]) => `<span class="chip">${escapeHtml(k)}: ${escapeHtml(v)}</span>`)
           .join("");
         render();
-      });
-      mcpApp.start("NDE search results");
+      };
+
+      await app.connect();
+      // Full screen button only when the host offers it
+      const host = app.getHostContext() ?? {};
+      $("fullscreen").hidden = Boolean(
+        host.availableDisplayModes && !host.availableDisplayModes.includes("fullscreen"),
+      );
+      onContext(host);
     </script>
   </body>
 </html>

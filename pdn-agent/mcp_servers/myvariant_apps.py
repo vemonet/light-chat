@@ -11,7 +11,7 @@ from mcp.server.apps import Apps
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import CallToolResult
 
-from .apps_common import text_result, widget_html
+from .apps_common import WIDGET_CSP, text_result, widget_html
 
 # Fields of the card, a full document can be hundreds of KB
 FIELDS = [
@@ -471,7 +471,5 @@ def show_variant_card(variant: str, assembly: str = "hg38") -> CallToolResult:
 
 
 apps.add_html_resource(
-    "ui://myvariant/card.html",
-    widget_html("myvariant-card.html"),
-    title="MyVariant variant card",
+    "ui://myvariant/card.html", widget_html("myvariant-card.html"), title="MyVariant variant card", csp=WIDGET_CSP
 )

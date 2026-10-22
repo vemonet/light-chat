@@ -11,7 +11,7 @@ from mcp.server.apps import Apps
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import CallToolResult
 
-from .apps_common import text_result, widget_html
+from .apps_common import WIDGET_CSP, text_result, widget_html
 
 FIELDS = [
     "symbol",
@@ -401,4 +401,6 @@ def show_gene_card(gene: str, species: str = "human") -> CallToolResult:
     return text_result("\n".join(lines), data)
 
 
-apps.add_html_resource("ui://mygene/card.html", widget_html("mygene-card.html"), title="MyGene gene card")
+apps.add_html_resource(
+    "ui://mygene/card.html", widget_html("mygene-card.html"), title="MyGene gene card", csp=WIDGET_CSP
+)

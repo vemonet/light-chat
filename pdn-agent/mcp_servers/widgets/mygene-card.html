@@ -242,8 +242,19 @@
     <div class="actions" id="actions"></div>
 
     <script src="colors.js"></script>
-    <script src="bridge.js"></script>
-    <script>
+    <script type="module">
+      import {
+        App,
+        applyDocumentTheme,
+      } from "https://cdn.jsdelivr.net/npm/@modelcontextprotocol/ext-apps@2.0.3/dist/src/app-with-deps.js";
+
+      // Connection to the host with the MCP Apps SDK
+      const app = new App(
+        { name: "MyGene card", version: "0.0.1" },
+        { availableDisplayModes: ["inline", "fullscreen"] },
+      );
+      const sendMessage = (text) => app.sendMessage({ role: "user", content: [{ type: "text", text }] });
+
       const $ = (id) => document.getElementById(id);
       const ASPECTS = { BP: "Biological process", MF: "Molecular function", CC: "Cellular component" };
       const PATHWAYS = {
@@ -451,8 +462,8 @@
       document.addEventListener("click", (e) => {
         const t = e.target.closest("[data-url], [data-ask], [data-aspect], [data-go], #summary");
         if (!t) return;
-        if (t.dataset.url) void mcpApp.openLink(t.dataset.url);
-        else if (t.dataset.ask) void mcpApp.message(t.dataset.ask);
+        if (t.dataset.url) void app.openLink({ url: t.dataset.url });
+        else if (t.dataset.ask) void sendMessage(t.dataset.ask);
         else if (t.id === "summary") t.classList.toggle("open");
         else if (t.dataset.aspect) {
           aspect = t.dataset.aspect;
@@ -460,7 +471,7 @@
           renderTerms();
         } else if (t.dataset.go) {
           const term = data.go[aspect].find((x) => x.id === t.dataset.go);
-          void mcpApp.message(`What is the role of ${data.symbol} in ${term.term} (${term.id})?`);
+          void sendMessage(`What is the role of ${data.symbol} in ${term.term} (${term.id})?`);
         }
       });
 
@@ -473,12 +484,23 @@
         }
       }).observe(document.body);
 
-      mcpApp.on("result", (result) => {
+      app.onhostcontextchanged = (ctx) => ctx.theme && applyDocumentTheme(ctx.theme);
+      // Tool arguments, to call the tool again when the result has no `structuredContent`, as Claude Desktop
+      // gives to widgets restored after a reload of the chat
+      let toolArgs;
+      app.ontoolinput = (params) => (toolArgs = params.arguments);
+      app.ontoolresult = async (result) => {
+        if (!result.structuredContent && !result.isError && toolArgs) {
+          result = await app.callServerTool({ name: "show_gene_card", arguments: toolArgs }).catch(() => result);
+        }
         data = result.structuredContent;
         if (!data?.symbol) return ($("title").textContent = "No gene");
         render();
-      });
-      mcpApp.start("MyGene card");
+      };
+
+      await app.connect();
+      const theme = app.getHostContext()?.theme;
+      if (theme) applyDocumentTheme(theme);
     </script>
   </body>
 </html>

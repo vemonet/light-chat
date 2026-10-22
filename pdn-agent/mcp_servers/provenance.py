@@ -30,7 +30,7 @@ from ag_ui.core import (
 from mcp.server.apps import Apps
 from mcp.server.mcpserver import MCPServer
 
-from .apps_common import widget_html
+from .apps_common import WIDGET_CSP, widget_html
 
 MARKER = "<!--PROVENANCE-->"
 GRAPH_URI = "ui://provenance/graph.html"
@@ -40,7 +40,7 @@ URL_RE = re.compile(r"https?://[^\s\"'<>`)\]]+")
 
 # MCP server only serving the graph widget to the chat, its data comes from the run events
 apps = Apps()
-apps.add_html_resource(GRAPH_URI, widget_html("provenance-graph.html"), title="Provenance graph")
+apps.add_html_resource(GRAPH_URI, widget_html("provenance-graph.html"), title="Provenance graph", csp=WIDGET_CSP)
 provenance_server = MCPServer("provenance", instructions="Graph of the tool calls of an answer", extensions=[apps])
 
 

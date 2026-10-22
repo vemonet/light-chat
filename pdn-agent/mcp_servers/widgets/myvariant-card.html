@@ -284,8 +284,20 @@
     <div class="actions" id="actions"></div>
 
     <script src="colors.js"></script>
-    <script src="bridge.js"></script>
-    <script>
+    <script type="module">
+      import {
+        App,
+        applyDocumentTheme,
+      } from "https://cdn.jsdelivr.net/npm/@modelcontextprotocol/ext-apps@2.0.3/dist/src/app-with-deps.js";
+
+      // Connection to the host with the MCP Apps SDK
+      const app = new App(
+        { name: "MyVariant card", version: "0.0.1" },
+        { availableDisplayModes: ["inline", "fullscreen"] },
+      );
+      const sendMessage = (text) => app.sendMessage({ role: "user", content: [{ type: "text", text }] });
+      const updateContext = (text) => app.updateModelContext({ content: [{ type: "text", text }] });
+
       const $ = (id) => document.getElementById(id);
       const LEVEL_COLORS = { damaging: "var(--pathogenic)", uncertain: "var(--uncertain)", benign: "var(--benign)" };
       let data;
@@ -441,8 +453,8 @@
       document.addEventListener("click", (e) => {
         const t = e.target.closest("[data-url], [data-ask], [data-i], #toggle-records");
         if (!t) return;
-        if (t.dataset.url) void mcpApp.openLink(t.dataset.url);
-        else if (t.dataset.ask) void mcpApp.message(t.dataset.ask);
+        if (t.dataset.url) void app.openLink({ url: t.dataset.url });
+        else if (t.dataset.ask) void sendMessage(t.dataset.ask);
         else if (t.id === "toggle-records") {
           allRecords = !allRecords;
           render();
@@ -450,19 +462,30 @@
           current = Number(t.dataset.i);
           render();
           const v = data.variants[current];
-          void mcpApp.context(
+          void updateContext(
             `The user switched the variant card to ${v.id} (${v.rsid ?? "no rsID"}, ${v.gene ?? ""} ${shortP(v)}): ` +
               `ClinVar ${v.clinvar?.significance ?? "none"}, gnomAD genome AF ${fmtAf(v.gnomad.genome?.af)}`,
           );
         }
       });
 
-      mcpApp.on("result", (result) => {
+      app.onhostcontextchanged = (ctx) => ctx.theme && applyDocumentTheme(ctx.theme);
+      // Tool arguments, to call the tool again when the result has no `structuredContent`, as Claude Desktop
+      // gives to widgets restored after a reload of the chat
+      let toolArgs;
+      app.ontoolinput = (params) => (toolArgs = params.arguments);
+      app.ontoolresult = async (result) => {
+        if (!result.structuredContent && !result.isError && toolArgs) {
+          result = await app.callServerTool({ name: "show_variant_card", arguments: toolArgs }).catch(() => result);
+        }
         data = result.structuredContent;
         if (!data?.variants?.length) return ($("title").textContent = "No variant");
         render();
-      });
-      mcpApp.start("MyVariant card");
+      };
+
+      await app.connect();
+      const theme = app.getHostContext()?.theme;
+      if (theme) applyDocumentTheme(theme);
     </script>
   </body>
 </html>
