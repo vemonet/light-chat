@@ -305,47 +305,19 @@ app.include_router(
             "ExPASy, and shows how it got each answer."
         ),
         placeholder="Ask a question",
-        # Together they call every MCP server, most of their tools, and the widgets
+        # Short questions, together they call every MCP server and most widgets
         examples=[
-            (
-                "Plot the share of Swiss SARS-CoV-2 sequences carrying S:L455S per month in 2024 in LAPIS, map where "
-                "the 2024 sequences come from, and summarize the most relevant PubMed article on this mutation"
-            ),
-            (
-                "Show the mutations of mpox clade Ib sequences in Pathoplexus along the genome, then the metadata and "
-                "sequence of the most recent sample from this clade"
-            ),
-            (
-                "How many Klebsiella pneumoniae isolates in NCBI Pathogen Detection carry a KPC carbapenemase gene? "
-                "Show them in a table, compare the bla genes of Klebsiella, E. coli and Salmonella in a heatmap, and "
-                "list datasets on carbapenem resistance from the NIAID Data Ecosystem"
-            ),
-            (
-                "What is the NCBI taxonomy ID of Brucella abortus, which reference genome assembly does NCBI hold for "
-                "it, how many SRA runs does its BioProject have, and which BRC Analytics workflows can run on its "
-                "assemblies?"
-            ),
-            (
-                "Find an E. coli ciprofloxacin expression study in GEO, show its samples and processed expression "
-                "files, and look up its study in ENA"
-            ),
-            (
-                "Show the gene card of human CFTR with its NCBI Gene summary, and the variant card of its F508del "
-                "variant (rs113993960)"
-            ),
-            (
-                "Show the 3D structure of human AKT1 with the E17K mutation highlighted, and its STRING interaction "
-                "network with the functional enrichment of its partners"
-            ),
-            (
-                "Compare the functions of the DNA damage response genes TP53, MDM2, CDKN1A, ATM, CHEK2 and BRCA1, then "
-                "show the domains, PTMs and pathogenic variants of TP53"
-            ),
-            "Find the insulin entries of all mammals in UniProt, and get the amino acid sequence of human insulin",
-            (
-                "Query Rhea through the ExPASy SPARQL endpoint for reactions involving ATP hydrolysis, then draw an "
-                "Excalidraw diagram of one of them"
-            ),
+            "How common was the SARS-CoV-2 mutation S:L455S in Switzerland in 2024, and why did it matter?",
+            "Where do mpox clade Ib sequences come from, and which mutations do they carry?",
+            "Which antibiotic resistance genes are found in Klebsiella pneumoniae, E. coli and Salmonella isolates?",
+            "Find public datasets on carbapenem-resistant bacteria",
+            "Which genome assemblies and analysis workflows are available for Brucella abortus?",
+            "Find gene expression studies of E. coli exposed to ciprofloxacin",
+            "What does the CFTR gene do, and what is its most common cystic fibrosis variant?",
+            "Show the 3D structure of hemoglobin beta and where the sickle cell mutation is",
+            "Which proteins interact with TP53, and in which pathways?",
+            "Compare insulin across mammals and show the human sequence",
+            "Draw a diagram of the reaction catalyzed by hexokinase",
         ],
     )
 )
