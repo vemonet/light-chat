@@ -5,7 +5,7 @@ import json
 import logging
 import os
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 from contextlib import AsyncExitStack, asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -28,7 +28,7 @@ from pydantic_ai import Agent, RunContext
 from pydantic_ai.mcp import MCPToolset
 from pydantic_ai.models.openai import OpenAIChatModel, OpenAIChatModelSettings
 from pydantic_ai.providers.openai import OpenAIProvider
-from pydantic_ai.toolsets import ToolsetTool
+from pydantic_ai.toolsets import AbstractToolset, ToolsetTool
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 from pydantic_settings import BaseSettings, NoDecode
 
@@ -92,6 +92,8 @@ class Settings(BaseSettings):
     allowed_hosts: CommaList = []
     # JSONL file where each chat request is appended with its response
     log_file: Path = Path("data/pdn_agent_logs.jsonl")
+    # Hide the MCP tools from the model until it finds them with the `search_tools` tool, instead of sending them all
+    defer_tools: bool = True
 
 
 settings = Settings()
@@ -133,8 +135,14 @@ tool_servers: dict[str, str] = {}
 # Instructions of the MCP servers by ID, added to the system prompt (those of remote servers are read at startup)
 server_instructions = {p: s.instructions for p, s in MCP_SERVERS.items() if s.instructions}
 
+
+def agent_toolsets(toolsets: Sequence[MCPToolset]) -> list[AbstractToolset[Any]]:
+    """Toolsets given to the agent, with their tools marked for deferred loading (tool search) if enabled"""
+    return [ts.defer_loading() for ts in toolsets] if settings.defer_tools else list(toolsets)
+
+
 # Failed tool calls are sent back to the model a few times, e.g. to fix an invalid query
-agent = Agent(toolsets=local_toolsets, deps_type=str, retries={"tools": 3})
+agent = Agent(toolsets=agent_toolsets(local_toolsets), deps_type=str, retries={"tools": 3})
 
 
 @agent.instructions
@@ -268,7 +276,7 @@ async def chat(request: Request) -> Response:
     model_settings = OpenAIChatModelSettings(openai_reasoning_effort=effort) if effort else None
     context = "\n\n".join(f"{c['description']}:\n{c['value']}" for c in body.get("context") or [])
     adapter = await AGUIAdapter[str, str].from_request(request, agent=agent)
-    toolsets = await available_remote_toolsets()
+    toolsets = agent_toolsets(await available_remote_toolsets())
     chat_model = OpenAIChatModel(model, provider=provider, settings=model_settings)
     events = adapter.run_stream(model=chat_model, deps=context, toolsets=toolsets)
     question = last_user_text(body)
