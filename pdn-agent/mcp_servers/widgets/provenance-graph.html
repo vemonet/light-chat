@@ -116,11 +116,7 @@
         color: #f85149;
       }
       .name {
-        font:
-          600 12.5px ui-monospace,
-          SFMono-Regular,
-          Menlo,
-          monospace;
+        font: 600 12.5px var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
         margin: 2px 0 4px;
         overflow-wrap: anywhere;
       }
@@ -170,11 +166,7 @@
         overflow: auto;
         background: var(--panel);
         border-radius: 6px;
-        font:
-          11.5px/1.4 ui-monospace,
-          SFMono-Regular,
-          Menlo,
-          monospace;
+        font: 11.5px/1.4 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
         white-space: pre-wrap;
         overflow-wrap: anywhere;
       }
@@ -219,6 +211,8 @@
       import {
         App,
         applyDocumentTheme,
+        applyHostFonts,
+        applyHostStyleVariables,
       } from "https://cdn.jsdelivr.net/npm/@modelcontextprotocol/ext-apps@2.0.3/dist/src/app-with-deps.js";
 
       // Connection to the host with the MCP Apps SDK
@@ -325,6 +319,8 @@
       };
       // Theme and display mode of the host as attributes on <html> for the CSS
       function onContext(ctx) {
+        if (ctx.styles?.variables) applyHostStyleVariables(ctx.styles.variables);
+        if (ctx.styles?.css?.fonts) applyHostFonts(ctx.styles.css.fonts);
         if (ctx.theme) applyDocumentTheme(ctx.theme);
         if (ctx.displayMode) {
           document.documentElement.dataset.mode = ctx.displayMode;

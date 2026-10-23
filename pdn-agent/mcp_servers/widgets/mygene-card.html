@@ -93,9 +93,7 @@
       }
       svg text {
         fill: var(--muted);
-        font:
-          11px system-ui,
-          sans-serif;
+        font: 11px var(--font-sans, system-ui, sans-serif);
       }
       .drawings {
         margin-top: 10px;
@@ -192,7 +190,7 @@
       }
       .terms .ev {
         color: var(--muted);
-        font-family: ui-monospace, Menlo, monospace;
+        font-family: var(--font-mono, ui-monospace, Menlo, monospace);
         font-size: 11px;
         white-space: nowrap;
       }
@@ -246,6 +244,8 @@
       import {
         App,
         applyDocumentTheme,
+        applyHostFonts,
+        applyHostStyleVariables,
       } from "https://cdn.jsdelivr.net/npm/@modelcontextprotocol/ext-apps@2.0.3/dist/src/app-with-deps.js";
 
       // Connection to the host with the MCP Apps SDK
@@ -484,7 +484,13 @@
         }
       }).observe(document.body);
 
-      app.onhostcontextchanged = (ctx) => ctx.theme && applyDocumentTheme(ctx.theme);
+      // Theme, colors and fonts of the host
+      function onContext(ctx) {
+        if (ctx.styles?.variables) applyHostStyleVariables(ctx.styles.variables);
+        if (ctx.styles?.css?.fonts) applyHostFonts(ctx.styles.css.fonts);
+        if (ctx.theme) applyDocumentTheme(ctx.theme);
+      }
+      app.onhostcontextchanged = onContext;
       // Tool arguments, to call the tool again when the result has no `structuredContent`, as Claude Desktop
       // gives to widgets restored after a reload of the chat
       let toolArgs;
@@ -499,8 +505,7 @@
       };
 
       await app.connect();
-      const theme = app.getHostContext()?.theme;
-      if (theme) applyDocumentTheme(theme);
+      onContext(app.getHostContext() ?? {});
     </script>
   </body>
 </html>
