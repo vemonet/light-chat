@@ -17,5 +17,14 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "include": ["packages/*/src", "packages/*/tests", "packages/*/vite.config.ts", "demo", "tests", "vite.config.ts"]
+  "include": [
+    "packages/*/src",
+    "packages/*/tests",
+    "packages/*/vite.config.ts",
+    "pdn-agent/mcp_servers/widgets/**/*.ts",
+    "pdn-agent/mcp_servers/widgets/**/*.tsx",
+    "demo",
+    "tests",
+    "vite.config.ts"
+  ]
 }

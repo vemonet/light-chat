@@ -1,7 +1,7 @@
 {
   "name": "pdn-agent",
   "private": true,
-  "description": "MCP Apps widgets of the PDN agent, bundled with their dependencies in one HTML file each",
+  "description": "MCP Apps widgets of the PDN agent",
   "type": "module",
   "scripts": {
     "build": "node build-widgets.js"
@@ -10,10 +10,14 @@
     "@modelcontextprotocol/ext-apps": "2.0.3",
     "cytoscape": "3.33.1",
     "d3": "7.9.0",
+    "solid-js": "^1.9.15",
     "topojson-client": "3.1.0",
     "world-atlas": "2.0.2"
   },
   "devDependencies": {
+    "@types/d3": "^7.4.3",
+    "@types/topojson-client": "^3.1.5",
+    "rolldown-plugin-solid": "^0.2.1",
     "vite": "catalog:",
     "vite-plugin-singlefile": "^2.3.4"
   }

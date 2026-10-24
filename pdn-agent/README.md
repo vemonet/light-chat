@@ -18,18 +18,12 @@ FastAPI app federating biological data resources through MCP servers, for light-
   | `brc-analytics` | [BRC Analytics](https://brc-analytics.org) ENA sequencing runs and workflows, complementing their public MCP server | `brc_ena_*`, `show_brc_workflow_matrix`                      |
   | `string`        | [STRING](https://string-db.org) protein networks, complementing their public MCP server                             | `show_string_network`                                        |
 
-- `/chat`: AG-UI endpoint, a Pydantic AI agent using the MCP server of the app, called in-process, and the public MCP servers of [STRING](https://mcp.string-db.org), [ExPASy](https://chat.expasy.org/mcp) (SPARQL over SIB resources, and the UniProt tools and widgets), [BRC Analytics](https://brc-analytics.org/api/v1/mcp/) and [Excalidraw](https://mcp.excalidraw.com/mcp). Their sessions are opened at startup and kept open, a server not answering then is skipped until the app restarts
-- `/info`: models available for `/chat` with their effort levels, and the MCP servers of the agent with their number of tools as read at startup (`null` for a server not answering then), listed from a button in the chat toolbar and used as healthcheck
+- `/chat`: AG-UI endpoint, a Pydantic AI agent using the MCP server of the app, called in-process, and the public MCP servers of [STRING](https://mcp.string-db.org), [ExPASy](https://chat.expasy.org/mcp) (SPARQL over SIB resources, and the UniProt tools and widgets), and [BRC Analytics](https://brc-analytics.org/api/v1/mcp/).
+- `/info`: models available for `/chat` with their effort levels, and the MCP servers of the agent with their number of tools as read at startup
 - `/`: chat UI from the [`light-chat` Python package](../packages/python/README.md)
 
-The BV-BRC MCP server of the codeathon repo is not included, it requires an authentication.
-
-It is part of the uv workspace defined at the repo root, which installs the Python package from `../packages/python`. Build the JS bundle and copy it in the Python package, and bundle the widgets, first, from the repo root (`vp run pdn` does both before starting the app):
-
-```bash
-vp run build:py
-vp run --filter pdn-agent build
-```
+>[!NOTE]
+>The BV-BRC MCP server of the codeathon repo is not included, it requires an authentication.
 
 The agent uses an OpenAI-compatible endpoint, configured in a `.env` file:
 
@@ -46,10 +40,10 @@ NCBI_API_KEY=
 # ALLOWED_HOSTS=pdn.example.org
 ```
 
-Start the API:
+Start the server:
 
 ```bash
-uv run --env-file .env uvicorn app:app --port 8084 --reload
+vp run pdn
 ```
 
 Open http://localhost:8084, and pick the model and its reasoning effort in the settings menu. Try "How many Klebsiella pneumoniae isolates in NCBI Pathogen Detection carry a KPC carbapenemase gene?", "Which E. coli gene expression studies involve ciprofloxacin?" or "Show the domains, PTMs and variants of human AKT1".
@@ -58,7 +52,7 @@ Open http://localhost:8084, and pick the model and its reasoning effort in the s
 
 The [system prompt](prompt.py) asks the model to lead with the answer, then write a `<!--PROVENANCE-->` marker, followed by the resources it chose and why, every tool call with its arguments and results, how the numbers were derived, caveats and sources. [`provenance.py`](mcp_servers/provenance.py) sends the text after the marker as the text message of a `provenance` AG-UI sub-agent, in the same LLM response: the chat shows it collapsed below the answer, rendered as markdown, and does not send it back in the history of the next turns.
 
-At the end of the run, the graph of the tool calls is added to this sub-agent, as an MCP App widget ([`mcp_servers/widgets/provenance-graph.html`](mcp_servers/widgets/provenance-graph.html)) served by a small MCP server of [`provenance.py`](mcp_servers/provenance.py), without asking the model: the steps of the run with their parallel calls, each with its server, arguments, counts and URLs from the result, and whether it failed. Clicking a call shows its full arguments, URLs and result.
+At the end of the run, the graph of the tool calls is added to this sub-agent, as an MCP App widget ([`mcp_servers/widgets/provenance-graph.tsx`](mcp_servers/widgets/provenance-graph.tsx)) served by a small MCP server of [`provenance.py`](mcp_servers/provenance.py), without asking the model: the steps of the run with their parallel calls, each with its server, arguments, counts and URLs from the result, and whether it failed.
 
 ## Deploy with Docker
 
@@ -87,7 +81,7 @@ The server listens on port 8000 in the container, and trusts `X-Forwarded-*` hea
 
 Tool UIs are handled by light-chat, the server only forwards ([`light_chat.mcp_apps`](../packages/python/src/light_chat/mcp_apps.py), from the `mcp-apps` extra of the [Python package](../packages/python/README.md)): raw results of the tools with a UI are sent to the chat in an `mcp-apps` activity, and widgets read their resource and call tools through `/chat` with `forwardedProps.__proxiedMCPRequest`. Tools only visible to apps are hidden from the model. The AG-UI `context` sent by the chat (e.g. a diagram edited by the user) is added to the instructions.
 
-Widgets are in [`mcp_servers/widgets/`](mcp_servers/widgets), declared with their tools in the `*_apps.py` modules of each resource, on the MCP Apps extension of [`mcp_servers/apps_common.py`](mcp_servers/apps_common.py) with the helpers. Each widget is bundled by Vite with its scripts, styles and npm dependencies (MCP Apps SDK, d3, Cytoscape.js...) in one HTML file in `mcp_servers/widgets/dist/` ([`build-widgets.js`](build-widgets.js)), so they load nothing from a CDN. They get the full data in the tool `structuredContent`, while the model only gets a summary, and they do not call the APIs themselves. Rows, cells or nodes selected by the user are sent back to the model as context, and buttons send a message about them.
+Widgets are in [`mcp_servers/widgets/`](mcp_servers/widgets), declared with their tools in the `*_apps.py` modules of each resource, on the MCP Apps extension of [`mcp_servers/apps_common.py`](mcp_servers/apps_common.py) with the helpers. Each widget is bundled by Vite with its scripts, styles and npm dependencies (MCP Apps SDK, d3, Cytoscape.js...) in one HTML file in `mcp_servers/widgets/dist/` ([`build-widgets.js`](build-widgets.js)), so they load nothing from a CDN. Each widget is one SolidJS component in TypeScript, `<name>.tsx`, with its CSS in the `styles` it exports, built into `dist/<name>.html` with a page generated by the build. The shared modules are in [`lib/`](mcp_servers/widgets/lib): [`mcp-app.tsx`](mcp_servers/widgets/lib/mcp-app.tsx) connects to the host and gives the tool result and host context as signals, [`logos.tsx`](mcp_servers/widgets/lib/logos.tsx) has the logos of the resources and [`common.css`](mcp_servers/widgets/lib/common.css) the styles common to all widgets. They get the full data in the tool `structuredContent`, while the model only gets a summary, and they do not call the APIs themselves. Rows, cells or nodes selected by the user are sent back to the model as context, and buttons send a message about them.
 
 PDN / LAPIS ([`mcp_servers/pdn_apps.py`](mcp_servers/pdn_apps.py)):
 
