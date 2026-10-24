@@ -16,7 +16,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import CallToolResult, ToolAnnotations
 from pydantic import Field
 
-from ..apps_common import WIDGET_CSP, apps, text_result, widget_html
+from ..apps_common import apps, text_result, widget_html
 from . import pathogens
 from .envelope import NCBIError
 from .eutils import TransportError
@@ -296,8 +296,5 @@ apps.add_html_resource(
     "ui://ncbi/isolates.html",
     widget_html("ncbi-isolates.html"),
     title="NCBI Pathogen Detection isolates",
-    csp=WIDGET_CSP,
 )
-apps.add_html_resource(
-    "ui://ncbi/amr-heatmap.html", widget_html("ncbi-amr-heatmap.html"), title="AMR gene heatmap", csp=WIDGET_CSP
-)
+apps.add_html_resource("ui://ncbi/amr-heatmap.html", widget_html("ncbi-amr-heatmap.html"), title="AMR gene heatmap")

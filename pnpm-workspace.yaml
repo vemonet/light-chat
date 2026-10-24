@@ -1,5 +1,6 @@
 packages:
   - packages/*
+  - pdn-agent
 catalog:
   vite: npm:@voidzero-dev/vite-plus-core@1.1.0
   vite-plus: 1.1.0

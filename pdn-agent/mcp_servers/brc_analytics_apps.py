@@ -14,7 +14,7 @@ from mcp import Client
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import CallToolResult
 
-from .apps_common import WIDGET_CSP, apps, text_result, widget_html
+from .apps_common import apps, text_result, widget_html
 
 # The trailing slash is required, without it the server redirects to plain http
 BRC_MCP = "https://brc-analytics.org/api/v1/mcp/"
@@ -279,5 +279,4 @@ apps.add_html_resource(
     "ui://brc-analytics/matrix.html",
     widget_html("brc-matrix.html"),
     title="BRC Analytics workflow matrix",
-    csp=WIDGET_CSP,
 )

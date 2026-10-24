@@ -12,7 +12,7 @@ from typing import Any, TypedDict
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import CallToolResult, ToolAnnotations
 
-from ..apps_common import WIDGET_CSP, apps, text_result, widget_html
+from ..apps_common import apps, text_result, widget_html
 from .client import PORTAL_RESOURCE_URL, NDEError, get_client
 from .format import first_name, format_facets, names_of, truncate
 from .query import build_clauses, build_params, join_clauses, normalize_sort
@@ -209,6 +209,4 @@ async def search_datasets_table(
     return text_result(text, data)
 
 
-apps.add_html_resource(
-    "ui://nde/datasets.html", widget_html("nde-datasets.html"), title="NDE dataset search results", csp=WIDGET_CSP
-)
+apps.add_html_resource("ui://nde/datasets.html", widget_html("nde-datasets.html"), title="NDE dataset search results")

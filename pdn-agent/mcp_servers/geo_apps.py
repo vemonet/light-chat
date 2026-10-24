@@ -9,7 +9,7 @@ from typing import TypedDict
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import CallToolResult
 
-from .apps_common import WIDGET_CSP, apps, text_result, widget_html
+from .apps_common import apps, text_result, widget_html
 
 GEO_QUERY = "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi"
 # Sample metadata is fetched in one SOFT request, about 3 KB and 35 ms per sample: skipped for bigger series
@@ -234,6 +234,4 @@ def show_geo_series(accession: str) -> CallToolResult:
     return text_result("\n".join(lines), data)
 
 
-apps.add_html_resource(
-    "ui://geo/series.html", widget_html("geo-series.html"), title="GEO series explorer", csp=WIDGET_CSP
-)
+apps.add_html_resource("ui://geo/series.html", widget_html("geo-series.html"), title="GEO series explorer")

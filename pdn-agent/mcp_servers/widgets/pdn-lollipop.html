@@ -159,14 +159,9 @@
       Hover a mutation for its frequency, click it for details, click a gene to zoom
     </div>
 
-    <script src="colors.js"></script>
     <script type="module">
-      import {
-        App,
-        applyDocumentTheme,
-        applyHostFonts,
-        applyHostStyleVariables,
-      } from "https://cdn.jsdelivr.net/npm/@modelcontextprotocol/ext-apps@2.0.3/dist/src/app-with-deps.js";
+      import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables } from "@modelcontextprotocol/ext-apps";
+      import { escapeHtml } from "./colors.js";
 
       // Connection to the host with the MCP Apps SDK
       const app = new App(

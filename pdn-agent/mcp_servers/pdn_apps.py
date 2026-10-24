@@ -8,11 +8,10 @@ import difflib
 import math
 from typing import Any, Literal, TypedDict
 
-from mcp.server.apps import ResourceCsp
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import CallToolResult
 
-from .apps_common import CDN, WIDGET_CSP, apps, text_result, widget_html
+from .apps_common import apps, text_result, widget_html
 from .lapis import (
     LAPIS_MAX_FILTER_DOWNLOAD_BYTES,
     LAPIS_MUTATION_FIELDS,
@@ -467,16 +466,13 @@ def show_lapis_mutation_lollipop(
     return text_result(text, data)
 
 
-# Charts drawn in plain SVG, except the map: d3 and topojson from the CDN, which also serves the world map fetched
-apps.add_html_resource(
-    "ui://pdn/over-time.html", widget_html("pdn-over-time.html"), title="LAPIS mutations over time", csp=WIDGET_CSP
-)
+# Charts drawn in plain SVG, except the map drawn with d3 and topojson
+apps.add_html_resource("ui://pdn/over-time.html", widget_html("pdn-over-time.html"), title="LAPIS mutations over time")
 apps.add_html_resource(
     "ui://pdn/country-map.html",
     widget_html("pdn-country-map.html"),
     title="LAPIS sequences by country",
-    csp=ResourceCsp(resource_domains=[CDN], connect_domains=[CDN]),
 )
 apps.add_html_resource(
-    "ui://pdn/lollipop.html", widget_html("pdn-lollipop.html"), title="LAPIS mutations along the genome", csp=WIDGET_CSP
+    "ui://pdn/lollipop.html", widget_html("pdn-lollipop.html"), title="LAPIS mutations along the genome"
 )

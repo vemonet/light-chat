@@ -72,8 +72,9 @@ export default defineConfig({
         dependsOn: ["build:py"],
         command: ["cd server && uv run --env-file .env uvicorn app:app --port 8083 --reload"],
       },
+      // Widgets of the MCP servers bundled in `pdn-agent/mcp_servers/widgets/dist/`
       pdn: {
-        dependsOn: ["build:py"],
+        dependsOn: ["build:py", "pdn-agent#build"],
         command: ["cd pdn-agent && uv run --env-file .env uvicorn app:app --port 8083 --reload"],
       },
     },

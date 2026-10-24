@@ -10,7 +10,7 @@ from typing import Any, TypedDict
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import CallToolResult
 
-from .apps_common import WIDGET_CSP, apps, text_result, widget_html
+from .apps_common import apps, text_result, widget_html
 
 # Fields of the card, a full document can be hundreds of KB
 FIELDS = [
@@ -467,6 +467,4 @@ def show_variant_card(variant: str, assembly: str = "hg38") -> CallToolResult:
     return text_result("\n".join(lines), VariantCardData(query=variant, variants=cards, note=note))
 
 
-apps.add_html_resource(
-    "ui://myvariant/card.html", widget_html("myvariant-card.html"), title="MyVariant variant card", csp=WIDGET_CSP
-)
+apps.add_html_resource("ui://myvariant/card.html", widget_html("myvariant-card.html"), title="MyVariant variant card")

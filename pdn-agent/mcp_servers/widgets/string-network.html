@@ -143,16 +143,11 @@
     <div class="legend" id="legend"></div>
     <div class="details muted" id="details">Hover or click a protein or an interaction for details</div>
 
-    <script src="colors.js"></script>
-    <script src="logos.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.33.1/dist/cytoscape.min.js"></script>
     <script type="module">
-      import {
-        App,
-        applyDocumentTheme,
-        applyHostFonts,
-        applyHostStyleVariables,
-      } from "https://cdn.jsdelivr.net/npm/@modelcontextprotocol/ext-apps@2.0.3/dist/src/app-with-deps.js";
+      import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables } from "@modelcontextprotocol/ext-apps";
+      import { escapeHtml, cssRgb } from "./colors.js";
+      import { logoHtml } from "./logos.js";
+      import cytoscape from "cytoscape";
 
       // Connection to the host with the MCP Apps SDK
       const app = new App(
@@ -574,10 +569,6 @@
         $("score").min = data.minScore;
         $("score").value = data.minScore;
         $("score-value").textContent = data.minScore.toFixed(2);
-        if (typeof cytoscape === "undefined") {
-          $("graph").innerHTML = `<p class="error" style="padding:10px">Could not load Cytoscape.js</p>`;
-          return;
-        }
         build();
       };
 

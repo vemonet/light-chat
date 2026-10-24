@@ -9,11 +9,10 @@ from collections import Counter
 from typing import Any, TypedDict
 
 import requests
-from mcp.server.apps import ResourceCsp
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import CallToolResult
 
-from .apps_common import CDN, apps, text_result, widget_html
+from .apps_common import apps, text_result, widget_html
 
 STRING_API = "https://string-db.org/api/json"
 STRING_URL = "https://string-db.org"
@@ -222,5 +221,4 @@ apps.add_html_resource(
     "ui://string/network.html",
     widget_html("string-network.html"),
     title="STRING protein network",
-    csp=ResourceCsp(resource_domains=[CDN]),
 )

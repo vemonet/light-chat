@@ -1,2 +1,4 @@
 .env
 data/
+# Widgets bundled by `vp run --filter pdn-agent build`
+mcp_servers/widgets/dist/

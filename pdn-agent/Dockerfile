@@ -1,7 +1,7 @@
 # Pathogen Data Network agent: MCP servers, AG-UI agent and chat UI. Built from the repo root:
 # docker build -f pdn-agent/Dockerfile -t pdn-agent .
 
-# JS bundle of the chat UI
+# JS bundle of the chat UI and widgets of the MCP servers
 FROM node:24-slim AS js
 WORKDIR /repo
 # CA certificates for the vp binary
@@ -10,13 +10,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json vite.config.ts ./
 COPY packages/js/package.json packages/js/
 COPY packages/solid/package.json packages/solid/
+COPY pdn-agent/package.json pdn-agent/
 # No scripts: `prepare` installs git hooks
 RUN pnpm install --frozen-lockfile --ignore-scripts
 COPY packages/js packages/js
 COPY packages/solid packages/solid
-RUN pnpm exec vp run --filter light-chat build
+COPY pdn-agent/build-widgets.js pdn-agent/
+COPY pdn-agent/mcp_servers/widgets pdn-agent/mcp_servers/widgets
+RUN pnpm exec vp run --filter light-chat --filter pdn-agent build
 
-# Python workspace, with the JS bundle in the light-chat package
+# Python workspace, with the JS bundle in the light-chat package and the bundled widgets
 FROM ghcr.io/astral-sh/uv:0.11.21-python3.13-trixie-slim
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_NO_DEV=1
 WORKDIR /app
@@ -24,6 +27,7 @@ COPY pyproject.toml uv.lock ./
 COPY packages/python packages/python
 COPY pdn-agent pdn-agent
 COPY --from=js /repo/packages/js/dist/index.js packages/python/src/light_chat/static/light-chat.js
+COPY --from=js /repo/pdn-agent/mcp_servers/widgets/dist pdn-agent/mcp_servers/widgets/dist
 RUN uv sync --frozen --no-editable --package pdn-agent
 
 # Non-root user, owning the folder of the request log

@@ -24,10 +24,11 @@ FastAPI app federating biological data resources through MCP servers, for light-
 
 The BV-BRC MCP server of the codeathon repo is not included, it requires an authentication.
 
-It is part of the uv workspace defined at the repo root, which installs the Python package from `../packages/python`. Build the JS bundle and copy it in the Python package first, from the repo root:
+It is part of the uv workspace defined at the repo root, which installs the Python package from `../packages/python`. Build the JS bundle and copy it in the Python package, and bundle the widgets, first, from the repo root (`vp run pdn` does both before starting the app):
 
 ```bash
 vp run build:py
+vp run --filter pdn-agent build
 ```
 
 The agent uses an OpenAI-compatible endpoint, configured in a `.env` file:
@@ -86,7 +87,7 @@ The server listens on port 8000 in the container, and trusts `X-Forwarded-*` hea
 
 Tool UIs are handled by light-chat, the server only forwards ([`light_chat.mcp_apps`](../packages/python/src/light_chat/mcp_apps.py), from the `mcp-apps` extra of the [Python package](../packages/python/README.md)): raw results of the tools with a UI are sent to the chat in an `mcp-apps` activity, and widgets read their resource and call tools through `/chat` with `forwardedProps.__proxiedMCPRequest`. Tools only visible to apps are hidden from the model. The AG-UI `context` sent by the chat (e.g. a diagram edited by the user) is added to the instructions.
 
-Widgets are in [`mcp_servers/widgets/`](mcp_servers/widgets), declared with their tools in the `*_apps.py` modules of each resource, on the MCP Apps extension of [`mcp_servers/apps_common.py`](mcp_servers/apps_common.py) with the helpers. They get the full data in the tool `structuredContent`, while the model only gets a summary, and they do not call the APIs themselves, except to load libraries, maps and structures. Rows, cells or nodes selected by the user are sent back to the model as context, and buttons send a message about them.
+Widgets are in [`mcp_servers/widgets/`](mcp_servers/widgets), declared with their tools in the `*_apps.py` modules of each resource, on the MCP Apps extension of [`mcp_servers/apps_common.py`](mcp_servers/apps_common.py) with the helpers. Each widget is bundled by Vite with its scripts, styles and npm dependencies (MCP Apps SDK, d3, Cytoscape.js...) in one HTML file in `mcp_servers/widgets/dist/` ([`build-widgets.js`](build-widgets.js)), so they load nothing from a CDN. They get the full data in the tool `structuredContent`, while the model only gets a summary, and they do not call the APIs themselves. Rows, cells or nodes selected by the user are sent back to the model as context, and buttons send a message about them.
 
 PDN / LAPIS ([`mcp_servers/pdn_apps.py`](mcp_servers/pdn_apps.py)):
 

@@ -1,22 +1,18 @@
 """Helpers of the tools showing MCP Apps widgets, shared by the servers.
 
 The widget gets the full data in `structuredContent`, the model only gets a text summary.
-Widgets are in `../widgets/`, the local scripts and stylesheets they reference are inlined when served.
+Widgets are in `widgets/`, bundled with their scripts, styles and npm dependencies in one HTML file each in
+`widgets/dist/` by `vp run --filter pdn-agent build`.
 """
 
-import re
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from mcp.server.apps import Apps, ResourceCsp
+from mcp.server.apps import Apps
 from mcp_types import CallToolResult, TextContent
 
-WIDGETS = Path(__file__).parent / "widgets"
-# CDN of the libraries loaded by widgets, to allow in their CSP `resource_domains`
-CDN = "https://cdn.jsdelivr.net"
-# CSP of the widgets, which load the MCP Apps SDK from the CDN
-WIDGET_CSP = ResourceCsp(resource_domains=[CDN])
+WIDGETS = Path(__file__).parent / "widgets" / "dist"
 # MCP Apps extension of the server, with the widget tools and resources of every resource: `server.py` imports
 # the modules registering them before creating the server, which reads them once
 apps = Apps()
@@ -28,13 +24,8 @@ def text_result(text: str, data: Mapping[str, Any]) -> CallToolResult:
 
 
 def widget_html(name: str) -> str:
-    """Widget HTML with the local scripts and stylesheets it references inlined"""
-    html = (WIDGETS / name).read_text()
-    html = re.sub(
-        r'<script src="(\w+\.js)"></script>', lambda m: f"<script>\n{(WIDGETS / m[1]).read_text()}</script>", html
-    )
-    return re.sub(
-        r'<link rel="stylesheet" href="(\w+\.css)" />',
-        lambda m: f"<style>\n{(WIDGETS / m[1]).read_text()}</style>",
-        html,
-    )
+    """Bundled widget HTML, with all its dependencies inlined"""
+    path = WIDGETS / name
+    if not path.exists():
+        raise FileNotFoundError(f"Widget {path} not built, run `vp run --filter pdn-agent build`")
+    return path.read_text()
