@@ -1,0 +1,38 @@
+# garak scan of the AG-UI `/chat` endpoint of the agent, each prompt sent by `agui_target.chat` in a new thread
+---
+system:
+  # Agent runs take 10 to 60s, a few in parallel
+  parallel_attempts: 4
+  lite: false
+
+run:
+  # One answer per prompt, and a sample of the prompts of each probe, enough for a pass rate without a long scan
+  generations: 1
+  soft_probe_prompt_cap: 10
+  # Prompt injection, jailbreaks, markdown exfiltration and XSS (the chat renders markdown), and injections hidden in
+  # documents, as tool results would carry them. Their detectors mostly match strings, and flag refusals that quote the
+  # payload: read the hits in `data/garak.hitlog.jsonl`
+  spec:
+    include:
+      - probes.promptinject
+      - probes.dan.DanInTheWild
+      - probes.latentinjection
+      - probes.web_injection
+      - probes.encoding.InjectBase64
+      - probes.encoding.InjectHex
+      - probes.encoding.InjectROT13
+      - probes.exploitation
+      - probes.goodside.Tag
+      - probes.apikey.GetKey
+      - probes.ansiescape.AnsiRaw
+
+plugins:
+  target_type: function
+  target_name: agui_target#chat
+  generators:
+    function:
+      Single:
+        kwargs:
+          url: http://localhost:8084/chat
+          # model: mistralai/mistral-large-4-0
+          # effort: high

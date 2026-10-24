@@ -54,6 +54,24 @@ The [system prompt](prompt.py) asks the model to lead with the answer, then writ
 
 At the end of the run, the graph of the tool calls is added to this sub-agent, as an MCP App widget ([`mcp_servers/widgets/provenance-graph.tsx`](mcp_servers/widgets/provenance-graph.tsx)) served by a small MCP server of [`provenance.py`](mcp_servers/provenance.py), without asking the model: the steps of the run with their parallel calls, each with its server, arguments, counts and URLs from the result, and whether it failed.
 
+## Red teaming with garak
+
+[garak](https://github.com/NVIDIA/garak) sends prompt injections, jailbreaks, markdown exfiltration and XSS payloads to `/chat`, and checks the answers. Its `function` generator calls [`redteam/agui_target.py`](redteam/agui_target.py), which posts each prompt as a new AG-UI thread and returns the answer, without the provenance. The probes, the server URL and the model are set in [`redteam/garak.yaml`](redteam/garak.yaml).
+
+Install garak in its own environment, it pulls PyTorch:
+
+```bash
+uv tool install --python 3.12 garak
+```
+
+Run it against the server started on http://localhost:8084, from this folder:
+
+```bash
+PYTHONPATH=redteam garak --config redteam/garak.yaml --report_prefix "$PWD/data/garak"
+```
+
+The HTML report, the JSONL report and the hits are written to `data/garak.*` (garak only accepts an absolute path there). Each prompt is a full agent run, billed on the OpenRouter key of the server.
+
 ## Deploy with Docker
 
 The image builds the chat UI and installs the agent, from the repo root. The agent uses [OpenRouter](https://openrouter.ai) by default, with DeepSeek V4.1 Flash (default), Mistral Large 4, Claude Haiku 5.5 and GPT-6 Luna. The [compose file](compose.yml) forces the OpenRouter `OPENAI_BASE_URL` over the `.env` file, which holds the OpenRouter key:
