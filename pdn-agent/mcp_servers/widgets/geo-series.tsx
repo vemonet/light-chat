@@ -427,8 +427,16 @@ function Series(props: { data: GeoSeriesData; mcp: McpApp<GeoSeriesData> }) {
 
 // Styles of the widget, after the common ones of lib/common.css
 export const styles = css`
+  /* Title wrapping on several lines, so the logo link and full screen button stay on its first line */
+  header {
+    align-items: flex-start;
+  }
+  header .logo-link {
+    align-self: auto;
+  }
   header h1 {
     flex: 1 1 320px;
+    padding-top: 4px;
     line-height: 1.35;
   }
   header .acc {
