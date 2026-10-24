@@ -22,8 +22,8 @@ FastAPI app federating biological data resources through MCP servers, for light-
 - `/info`: models available for `/chat` with their effort levels, and the MCP servers of the agent with their number of tools as read at startup
 - `/`: chat UI from the [`light-chat` Python package](../packages/python/README.md)
 
->[!NOTE]
->The BV-BRC MCP server of the codeathon repo is not included, it requires an authentication.
+> [!NOTE]
+> The BV-BRC MCP server of the codeathon repo is not included, it requires an authentication.
 
 The agent uses an OpenAI-compatible endpoint, configured in a `.env` file:
 

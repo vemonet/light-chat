@@ -178,7 +178,12 @@ test("answers can be rated and code blocks copied", async () => {
 });
 
 test("dark theme and phone sized screens", async () => {
-  await page.locator("#theme").selectOption("dark");
+  // Theme switch in the sidebar cycles System > Light > Dark
+  await page.getByRole("button", { name: "Open sidebar" }).click();
+  await page.getByRole("button", { name: "Theme: System" }).click();
+  await page.getByRole("button", { name: "Theme: Light" }).click();
+  await page.getByRole("button", { name: "Theme: Dark" }).waitFor();
+  await page.getByRole("button", { name: "Close sidebar" }).click();
   expect(await page.locator(".lc-root").evaluate((el) => getComputedStyle(el).colorScheme)).toBe("dark");
 
   await page.setViewportSize({ width: 375, height: 812 });

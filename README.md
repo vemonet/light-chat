@@ -1,6 +1,6 @@
 # light-chat
 
-A lightweight and framework-agnostic chat UI for LLM agents, for [AG-UI](https://docs.ag-ui.com) or OpenAI-compatible endpoints, with the clean, modern look of recent agent apps like Claude Code and Codex.
+A lightweight, framework-agnostic chat UI for LLM agents, with a modern look inspired by Claude Code and Codex. Works with any backend, includes built-in [AG-UI](https://docs.ag-ui.com) and OpenAI connectors, and renders [MCP Apps](https://blog.modelcontextprotocol.io/posts/2025-11-21-mcp-apps/).
 
 ```html
 <div id="chat" style="height: 100vh"></div>
@@ -20,14 +20,14 @@ A lightweight and framework-agnostic chat UI for LLM agents, for [AG-UI](https:/
 
 ## Packages
 
-| Package                                        | Description                                                                    |
+|npm package| Description                                                                    |
 | ---------------------------------------------- | ------------------------------------------------------------------------------ |
 | [`light-chat`](packages/js/README.md)          | Framework agnostic: `new Chat("chat", { url })`, everything bundled            |
 | [`light-chat-solid`](packages/solid/README.md) | SolidJS component `<Chat url="..." />`, for Solid apps, `solid-js` as peer dep |
 
-The UI is written with [SolidJS](https://www.solidjs.com), which compiles to small and fast DOM code. `light-chat` bundles it, so you never deal with it unless you build a Solid app yourself.
+The UI is written with [SolidJS](https://www.solidjs.com), which compiles to small and fast DOM code. `light-chat` bundles it, so you never deal with it unless you build a Solid app yourself. See the [`light-chat` documentation](packages/js/README.md) for all options: connectors, settings, history, attachments and theming.
 
-See the [`light-chat` documentation](packages/js/README.md) for all options: connectors, settings, history, attachments and theming.
+There is also a `light-chat` pip package that enables to easily deploy the light-chat UI on a FastAPI endpoint with support for MCP Apps.
 
 ## Install
 
@@ -77,6 +77,12 @@ Start the playground (`index.html`). Requests to `api/openai` and `api/agui` are
 
 ```bash
 vp dev
+```
+
+Start the pdn python server:
+
+```sh
+vp run pdn
 ```
 
 Build all packages to their `dist/`:
