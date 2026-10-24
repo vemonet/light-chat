@@ -3,6 +3,7 @@ import type { ChatController } from "../store.ts";
 import type { FilePart } from "../types.ts";
 import { PlusIcon, ReturnIcon, StopIcon } from "./icons.tsx";
 import { FileChip } from "./Parts.tsx";
+import { Tooltip } from "./Tooltip.tsx";
 import { ApiKeySetting, EffortSetting, McpServersSetting, ModelSetting } from "./Settings.tsx";
 
 const readFile = (file: File) =>
@@ -110,14 +111,18 @@ export function Composer(props: { chat: ChatController; onSend: () => void }) {
           <Show
             when={chat.state.streaming}
             fallback={
-              <button type="submit" class="lc-send" disabled={!canSend()} aria-label="Send">
-                <ReturnIcon />
-              </button>
+              <Tooltip label="Send" shortcut="Enter" side="top" disabled={!canSend()}>
+                <button type="submit" class="lc-send" disabled={!canSend()} aria-label="Send">
+                  <ReturnIcon />
+                </button>
+              </Tooltip>
             }
           >
-            <button type="button" class="lc-send" onClick={() => chat.stop()} aria-label="Stop">
-              <StopIcon />
-            </button>
+            <Tooltip label="Stop" side="top">
+              <button type="button" class="lc-send" onClick={() => chat.stop()} aria-label="Stop">
+                <StopIcon />
+              </button>
+            </Tooltip>
           </Show>
         </div>
       </div>
@@ -129,15 +134,11 @@ export function Composer(props: { chat: ChatController; onSend: () => void }) {
       >
         <div class="lc-toolbar">
           <Show when={attachments}>
-            <button
-              type="button"
-              class="lc-icon-btn"
-              aria-label="Add files"
-              title="Add files"
-              onClick={() => fileInput.click()}
-            >
-              <PlusIcon />
-            </button>
+            <Tooltip label="Add files" side="top">
+              <button type="button" class="lc-icon-btn" aria-label="Add files" onClick={() => fileInput.click()}>
+                <PlusIcon />
+              </button>
+            </Tooltip>
             <input
               ref={fileInput}
               type="file"

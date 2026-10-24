@@ -3,6 +3,7 @@ import type { JSX } from "solid-js";
 import type { SearchHit } from "../history.ts";
 import type { ChatController } from "../store.ts";
 import type { Theme } from "../types.ts";
+import { mac, Tooltip } from "./Tooltip.tsx";
 import { CloseIcon, MonitorIcon, MoonIcon, PanelIcon, PlusIcon, SearchIcon, SunIcon, TrashIcon } from "./icons.tsx";
 
 const STORAGE_KEY = "light-chat-sidebar";
@@ -19,6 +20,9 @@ function initialCollapsed(openByDefault: boolean) {
   }
   return !openByDefault;
 }
+
+// New session shortcut handled in App.tsx, on macOS Cmd+N opens a browser window so Ctrl+N is the one that works
+const NEW_SHORTCUT = mac ? "Ctrl+N" : "Mod+Shift+O";
 
 /** Theme switch states, in click order */
 const THEMES: Record<Theme, { label: string; icon: () => JSX.Element; next: Theme }> = {
@@ -118,63 +122,53 @@ export function Sidebar(props: {
       fallback={
         // Collapsed: only the expand and new chat buttons, floating top left over the chat
         <div class="lc-sidebar-float">
-          <button
-            type="button"
-            class="lc-sidebar-btn lc-square"
-            aria-label="Open sidebar"
-            title="Open sidebar"
-            onClick={toggle}
-          >
-            <PanelIcon />
-          </button>
-          <button
-            type="button"
-            class="lc-sidebar-btn lc-square"
-            aria-label="New session"
-            title="New session"
-            onClick={newChat}
-          >
-            {newIcon()}
-          </button>
+          <Tooltip label="Open sidebar" side="right">
+            <button type="button" class="lc-sidebar-btn lc-square" aria-label="Open sidebar" onClick={toggle}>
+              <PanelIcon />
+            </button>
+          </Tooltip>
+          <Tooltip label="New session" shortcut={NEW_SHORTCUT} side="right">
+            <button type="button" class="lc-sidebar-btn lc-square" aria-label="New session" onClick={newChat}>
+              {newIcon()}
+            </button>
+          </Tooltip>
         </div>
       }
     >
       <aside class="lc-sidebar" aria-label="Conversations">
         <div class="lc-sidebar-top">
-          <button
-            type="button"
-            class="lc-sidebar-btn lc-square"
-            aria-label="Close sidebar"
-            title="Close sidebar"
-            onClick={toggle}
-          >
-            <PanelIcon />
-          </button>
+          <Tooltip label="Close sidebar">
+            <button type="button" class="lc-sidebar-btn lc-square" aria-label="Close sidebar" onClick={toggle}>
+              <PanelIcon />
+            </button>
+          </Tooltip>
           {/* Theme switch, cycles system > light > dark */}
           <Show when={chat.options.themeSwitch}>
-            <button
-              type="button"
-              class="lc-sidebar-btn lc-square"
-              aria-label={`Theme: ${THEMES[chat.state.theme].label}`}
-              title={`Theme: ${THEMES[chat.state.theme].label}`}
-              onClick={() => chat.setTheme(THEMES[chat.state.theme].next)}
-            >
-              {THEMES[chat.state.theme].icon()}
-            </button>
+            <Tooltip label={`Theme: ${THEMES[chat.state.theme].label}`}>
+              <button
+                type="button"
+                class="lc-sidebar-btn lc-square"
+                aria-label={`Theme: ${THEMES[chat.state.theme].label}`}
+                onClick={() => chat.setTheme(THEMES[chat.state.theme].next)}
+              >
+                {THEMES[chat.state.theme].icon()}
+              </button>
+            </Tooltip>
           </Show>
           {/* Search button, expands into a search box with a clear button */}
           <Show when={canSearch}>
             <div class="lc-search" classList={{ "lc-on": searching() }}>
-              <button
-                type="button"
-                class="lc-sidebar-btn lc-square"
-                aria-label={searching() ? "Close search" : "Search"}
-                title={searching() ? "Close search" : "Search"}
-                aria-pressed={searching()}
-                onClick={() => setSearching(!searching())}
-              >
-                <SearchIcon />
-              </button>
+              <Tooltip label={searching() ? "Close search" : "Search"}>
+                <button
+                  type="button"
+                  class="lc-sidebar-btn lc-square"
+                  aria-label={searching() ? "Close search" : "Search"}
+                  aria-pressed={searching()}
+                  onClick={() => setSearching(!searching())}
+                >
+                  <SearchIcon />
+                </button>
+              </Tooltip>
               <Show when={searching()}>
                 <input
                   ref={(el) => {
@@ -189,27 +183,30 @@ export function Sidebar(props: {
                   onKeyDown={(e) => e.key === "Escape" && setSearching(false)}
                 />
                 <Show when={query()}>
-                  <button
-                    type="button"
-                    class="lc-search-clear"
-                    aria-label="Clear search"
-                    title="Clear search"
-                    onClick={() => {
-                      setQuery("");
-                      searchInput.focus();
-                    }}
-                  >
-                    <CloseIcon />
-                  </button>
+                  <Tooltip label="Clear search">
+                    <button
+                      type="button"
+                      class="lc-search-clear"
+                      aria-label="Clear search"
+                      onClick={() => {
+                        setQuery("");
+                        searchInput.focus();
+                      }}
+                    >
+                      <CloseIcon />
+                    </button>
+                  </Tooltip>
                 </Show>
               </Show>
             </div>
           </Show>
         </div>
-        <button type="button" class="lc-sidebar-btn" title="New session" onClick={newChat}>
-          {newIcon()}
-          <span>New</span>
-        </button>
+        <Tooltip label="New session" shortcut={NEW_SHORTCUT}>
+          <button type="button" class="lc-sidebar-btn" onClick={newChat}>
+            {newIcon()}
+            <span>New</span>
+          </button>
+        </Tooltip>
         {/* Search results, one row per matching message */}
         <Show when={showHits()}>
           <div class="lc-recents">
@@ -243,30 +240,34 @@ export function Sidebar(props: {
             <For each={chat.state.conversations}>
               {(c) => (
                 <div class="lc-conversation" classList={{ "lc-current": c.id === chat.state.conversationId }}>
-                  <button
-                    type="button"
-                    class="lc-conversation-title"
-                    title={c.title}
-                    onClick={() => {
-                      void chat.openConversation(c.id);
-                      done();
-                    }}
-                  >
-                    {c.title}
-                  </button>
+                  <Tooltip label={c.title} side="right" truncated>
+                    <button
+                      type="button"
+                      class="lc-conversation-title"
+                      onClick={() => {
+                        void chat.openConversation(c.id);
+                        done();
+                      }}
+                    >
+                      {c.title}
+                    </button>
+                  </Tooltip>
                   {/* Response still streaming, e.g. after switching to another conversation */}
                   <Show when={chat.state.threads[c.id]?.streaming}>
-                    <span class="lc-conversation-running" role="status" aria-label="Responding" title="Responding" />
+                    <Tooltip label="Responding">
+                      <span class="lc-conversation-running" role="status" aria-label="Responding" />
+                    </Tooltip>
                   </Show>
-                  <button
-                    type="button"
-                    class="lc-conversation-delete"
-                    aria-label={`Delete ${c.title}`}
-                    title="Delete"
-                    onClick={() => void chat.deleteConversation(c.id)}
-                  >
-                    <TrashIcon />
-                  </button>
+                  <Tooltip label="Delete">
+                    <button
+                      type="button"
+                      class="lc-conversation-delete"
+                      aria-label={`Delete ${c.title}`}
+                      onClick={() => void chat.deleteConversation(c.id)}
+                    >
+                      <TrashIcon />
+                    </button>
+                  </Tooltip>
                 </div>
               )}
             </For>

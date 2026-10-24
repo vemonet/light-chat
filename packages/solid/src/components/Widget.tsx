@@ -4,6 +4,7 @@ import { ChatContext, type ChatController } from "../store.ts";
 import type { ActivityPart, McpRequest } from "../types.ts";
 import { humanize } from "../utils.ts";
 import { AppIcon, CloseIcon } from "./icons.tsx";
+import { Tooltip } from "./Tooltip.tsx";
 import { version } from "../../package.json";
 
 /** Activity type of tool results with a UI, from the AG-UI MCP Apps middleware */
@@ -316,10 +317,12 @@ export function Widget(props: { part: ActivityPart }) {
 
   return (
     <div class="lc-widget-block">
-      <div class="lc-widget-caption" title={content.tool?.name}>
-        <AppIcon />
-        <span>{caption()}</span>
-      </div>
+      <Tooltip label={content.tool?.name} disabled={!content.tool?.name} side="top">
+        <div class="lc-widget-caption">
+          <AppIcon />
+          <span>{caption()}</span>
+        </div>
+      </Tooltip>
       <Switch>
         <Match when={ui.error}>
           <div class="lc-error">Could not load the UI: {ui.error?.message ?? String(ui.error)}</div>
@@ -350,14 +353,16 @@ export function Widget(props: { part: ActivityPart }) {
                       <AppIcon />
                       <span>{caption()}</span>
                     </span>
-                    <button
-                      type="button"
-                      class="lc-widget-close"
-                      aria-label="Exit full screen"
-                      onClick={() => setMode("inline")}
-                    >
-                      <CloseIcon />
-                    </button>
+                    <Tooltip label="Exit full screen">
+                      <button
+                        type="button"
+                        class="lc-widget-close"
+                        aria-label="Exit full screen"
+                        onClick={() => setMode("inline")}
+                      >
+                        <CloseIcon />
+                      </button>
+                    </Tooltip>
                   </div>
                 </Show>
                 <iframe

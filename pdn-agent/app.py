@@ -378,7 +378,7 @@ app.include_router(
         placeholder="Ask a question",
         # Short questions, together they call every MCP server and most widgets
         examples=[
-            "How common was the SARS-CoV-2 mutation S:L455S in Switzerland in 2024, and why did it matter?",
+            "Plot how the main SARS-CoV-2 spike mutations rose and fell in Switzerland over 2024",
             "Where do mpox clade Ib sequences come from, and which mutations do they carry?",
             "Which antibiotic resistance genes are found in Klebsiella pneumoniae, E. coli and Salmonella isolates?",
             "Find public datasets on carbapenem-resistant bacteria",

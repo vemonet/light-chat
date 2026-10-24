@@ -2,6 +2,7 @@ import { createMemo, For, Show } from "solid-js";
 import type { ChatController } from "../store.ts";
 import type { FilePart, Message } from "../types.ts";
 import { CheckIcon, CopyIcon, ThumbDownIcon, ThumbUpIcon } from "./icons.tsx";
+import { Tooltip } from "./Tooltip.tsx";
 import { Blocks, copy, Elapsed, FileChip, formatDuration, toBlocks } from "./Parts.tsx";
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -65,43 +66,48 @@ export function MessageView(props: { message: Message; streaming: boolean; chat:
       {/* Actions revealed on hover: copy, datetime, rating */}
       <Show when={!props.streaming}>
         <div class="lc-actions">
-          <button
-            type="button"
-            class="lc-action lc-copy"
-            title="Copy"
-            aria-label="Copy message"
-            onClick={(e) => copy(text(), e.currentTarget)}
-          >
-            <CopyIcon />
-            <CheckIcon />
-          </button>
+          <Tooltip label="Copy">
+            <button
+              type="button"
+              class="lc-action lc-copy"
+              aria-label="Copy message"
+              onClick={(e) => copy(text(), e.currentTarget)}
+            >
+              <CopyIcon />
+              <CheckIcon />
+            </button>
+          </Tooltip>
           <Show when={m().role === "assistant" && props.chat.options.onRate}>
-            <button
-              type="button"
-              class="lc-action"
-              classList={{ "lc-selected": m().rating === "up" }}
-              title="Good response"
-              aria-label="Good response"
-              aria-pressed={m().rating === "up"}
-              onClick={() => props.chat.rate(m().id, "up")}
-            >
-              <ThumbUpIcon />
-            </button>
-            <button
-              type="button"
-              class="lc-action"
-              classList={{ "lc-selected": m().rating === "down" }}
-              title="Bad response"
-              aria-label="Bad response"
-              aria-pressed={m().rating === "down"}
-              onClick={() => props.chat.rate(m().id, "down")}
-            >
-              <ThumbDownIcon />
-            </button>
+            <Tooltip label="Good response">
+              <button
+                type="button"
+                class="lc-action"
+                classList={{ "lc-selected": m().rating === "up" }}
+                aria-label="Good response"
+                aria-pressed={m().rating === "up"}
+                onClick={() => props.chat.rate(m().id, "up")}
+              >
+                <ThumbUpIcon />
+              </button>
+            </Tooltip>
+            <Tooltip label="Bad response">
+              <button
+                type="button"
+                class="lc-action"
+                classList={{ "lc-selected": m().rating === "down" }}
+                aria-label="Bad response"
+                aria-pressed={m().rating === "down"}
+                onClick={() => props.chat.rate(m().id, "down")}
+              >
+                <ThumbDownIcon />
+              </button>
+            </Tooltip>
           </Show>
-          <time class="lc-time" dateTime={m().createdAt.toISOString()} title={formatFull(m().createdAt, m().endedAt)}>
-            {formatDate(m().createdAt)}
-          </time>
+          <Tooltip label={formatFull(m().createdAt, m().endedAt)}>
+            <time class="lc-time" dateTime={m().createdAt.toISOString()}>
+              {formatDate(m().createdAt)}
+            </time>
+          </Tooltip>
         </div>
       </Show>
     </div>

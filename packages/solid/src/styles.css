@@ -16,6 +16,8 @@
   --lc-code-bg: light-dark(#f5f5f5, #1c1c1c);
   --lc-sidebar-bg: light-dark(#f7f7f7, #0a0a0a);
   --lc-sidebar-border: light-dark(#ededed, #1c1c1c);
+  --lc-tooltip-bg: light-dark(#1f1f1f, #383838);
+  --lc-tooltip-fg: #f5f5f5;
   --lc-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --lc-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --lc-radius: 16px;
@@ -1193,6 +1195,61 @@
 .lc-root .lc-chip-btn.lc-on {
   opacity: 1;
   background: var(--lc-hover);
+}
+
+/* Tooltip: small dark label with the shortcut dimmed after it, in the top layer (see Tooltip.tsx) */
+.lc-tooltip {
+  position: fixed;
+  /* Measured at the viewport corner with all the width available, before being moved next to its trigger */
+  inset: 0 auto auto 0;
+  margin: 0;
+  max-width: 280px;
+  padding: 4px 8px;
+  border: 1px solid light-dark(transparent, rgb(255 255 255 / 0.08));
+  border-radius: 7px;
+  background: var(--lc-tooltip-bg);
+  color: var(--lc-tooltip-fg);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.18);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+
+.lc-tooltip:popover-open {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: lc-tooltip-in 0.12s ease-out;
+}
+
+@keyframes lc-tooltip-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+/* Shortcut: one dimmed chip per key */
+.lc-shortcut {
+  display: flex;
+  gap: 2px;
+  font: inherit;
+  white-space: nowrap;
+}
+
+.lc-shortcut kbd {
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgb(255 255 255 / 0.1);
+  color: rgb(255 255 255 / 0.6);
+  font-family: var(--lc-font);
+  font-size: 11px;
 }
 
 /* Setting popover, opens above its toolbar button */

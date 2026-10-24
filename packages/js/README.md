@@ -238,4 +238,4 @@ All colors and sizes are CSS variables you can override, using `light-dark()` to
 }
 ```
 
-Available: `--lc-bg`, `--lc-fg`, `--lc-muted`, `--lc-surface`, `--lc-input-bg`, `--lc-border`, `--lc-border-strong`, `--lc-hover`, `--lc-accent`, `--lc-link`, `--lc-error`, `--lc-code-bg`, `--lc-font`, `--lc-mono`, `--lc-radius`, `--lc-max-width`.
+Available: `--lc-bg`, `--lc-fg`, `--lc-muted`, `--lc-surface`, `--lc-input-bg`, `--lc-border`, `--lc-border-strong`, `--lc-hover`, `--lc-accent`, `--lc-link`, `--lc-error`, `--lc-code-bg`, `--lc-tooltip-bg`, `--lc-tooltip-fg`, `--lc-font`, `--lc-mono`, `--lc-radius`, `--lc-max-width`.

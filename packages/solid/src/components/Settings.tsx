@@ -2,6 +2,7 @@ import { createEffect, createResource, createSignal, For, onCleanup, Show, type 
 import type { ChatController } from "../store.ts";
 import type { McpServerInfo } from "../types.ts";
 import { humanize } from "../utils.ts";
+import { Tooltip } from "./Tooltip.tsx";
 import { CheckIcon, ChevronIcon, EyeIcon, EyeOffIcon, GaugeIcon, KeyIcon, PlugIcon } from "./icons.tsx";
 
 /** Toolbar button toggling a popover above it, closed on click outside or Escape */
@@ -30,17 +31,18 @@ function Popover(props: {
 
   return (
     <div class="lc-setting" ref={root}>
-      <button
-        type="button"
-        class={props.class ?? "lc-icon-btn"}
-        classList={{ "lc-on": open() }}
-        aria-label={props.label}
-        aria-expanded={open()}
-        title={props.label}
-        onClick={() => setOpen(!open())}
-      >
-        {props.trigger}
-      </button>
+      <Tooltip label={props.label} side="top" disabled={open()}>
+        <button
+          type="button"
+          class={props.class ?? "lc-icon-btn"}
+          classList={{ "lc-on": open() }}
+          aria-label={props.label}
+          aria-expanded={open()}
+          onClick={() => setOpen(!open())}
+        >
+          {props.trigger}
+        </button>
+      </Tooltip>
       <Show when={open()}>
         <div class="lc-popover" role="dialog" aria-label={props.label}>
           {props.children(close)}
@@ -144,15 +146,16 @@ export function ApiKeySetting(props: { chat: ChatController }) {
                 close();
               }}
             />
-            <button
-              type="button"
-              class="lc-icon-btn"
-              aria-label={visible() ? "Hide API key" : "Show API key"}
-              title={visible() ? "Hide API key" : "Show API key"}
-              onClick={() => setVisible(!visible())}
-            >
-              {visible() ? <EyeOffIcon /> : <EyeIcon />}
-            </button>
+            <Tooltip label={visible() ? "Hide API key" : "Show API key"}>
+              <button
+                type="button"
+                class="lc-icon-btn"
+                aria-label={visible() ? "Hide API key" : "Show API key"}
+                onClick={() => setVisible(!visible())}
+              >
+                {visible() ? <EyeOffIcon /> : <EyeIcon />}
+              </button>
+            </Tooltip>
           </div>
         </label>
       )}
@@ -199,9 +202,9 @@ export function McpServersSetting(props: { source: McpServerInfo[] | string }) {
                     <span class="lc-server-tools">{s.tools == null ? "unavailable" : plural(s.tools, "tool")}</span>
                     {/* Selected in one click, to add the server to another MCP client */}
                     <Show when={s.url}>
-                      <span class="lc-server-url" title={s.url}>
-                        {s.url}
-                      </span>
+                      <Tooltip label={s.url} truncated>
+                        <span class="lc-server-url">{s.url}</span>
+                      </Tooltip>
                     </Show>
                   </li>
                 )}

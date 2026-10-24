@@ -13,6 +13,7 @@ import type {
 } from "../types.ts";
 import { ActivityIcon, AgentIcon, BulbIcon, ChevronIcon, CloseIcon, FileIcon, StepIcon, ToolIcon } from "./icons.tsx";
 import { humanize } from "../utils.ts";
+import { Tooltip } from "./Tooltip.tsx";
 import { hasUi, Widget, WIDGET_ACTIVITY } from "./Widget.tsx";
 
 /** Copy to clipboard and briefly flag the element with `data-copied` for feedback */
@@ -157,29 +158,31 @@ export function Reasoning(props: { part: ReasoningPart; active: boolean }) {
 export function FileChip(props: { file: FilePart; onRemove?: () => void }) {
   const image = () => props.file.mimeType.startsWith("image/");
   return (
-    <div class="lc-file" classList={{ "lc-file-image": image() }} title={props.file.name}>
-      <Show
-        when={image()}
-        fallback={
-          <>
-            <FileIcon />
-            <span class="lc-file-name">{props.file.name}</span>
-          </>
-        }
-      >
-        <img src={props.file.data} alt={props.file.name} />
-      </Show>
-      <Show when={props.onRemove}>
-        <button
-          type="button"
-          class="lc-file-remove"
-          aria-label={`Remove ${props.file.name}`}
-          onClick={() => props.onRemove?.()}
+    <Tooltip label={props.file.name}>
+      <div class="lc-file" classList={{ "lc-file-image": image() }}>
+        <Show
+          when={image()}
+          fallback={
+            <>
+              <FileIcon />
+              <span class="lc-file-name">{props.file.name}</span>
+            </>
+          }
         >
-          <CloseIcon />
-        </button>
-      </Show>
-    </div>
+          <img src={props.file.data} alt={props.file.name} />
+        </Show>
+        <Show when={props.onRemove}>
+          <button
+            type="button"
+            class="lc-file-remove"
+            aria-label={`Remove ${props.file.name}`}
+            onClick={() => props.onRemove?.()}
+          >
+            <CloseIcon />
+          </button>
+        </Show>
+      </div>
+    </Tooltip>
   );
 }
 
