@@ -20,6 +20,7 @@ from ag_ui.core import (
     ToolCallStartEvent,
 )
 from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.responses import FileResponse
 from light_chat import chat_router, setup_logging
 from light_chat.mcp_apps import PROXIED_REQUEST, UIToolset, proxied_response, ui_meta
 from mcp.server.transport_security import TransportSecuritySettings
@@ -287,6 +288,11 @@ async def chat(request: Request) -> Response:
     return adapter.streaming_response(events)
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon() -> FileResponse:
+    return FileResponse(Path(__file__).parent / "static" / "favicon.png", media_type="image/png")
+
+
 @app.get("/models")
 async def models() -> list[Model]:
     """Models available for `/chat`, with their effort levels"""
@@ -300,6 +306,7 @@ app.include_router(
         # Relative to the page, so it works behind a reverse proxy serving the app under a prefix
         url="chat",
         title="Pathogen Data Network agent",
+        favicon="favicon.ico",
         settings={"models": [m.model_dump(by_alias=True, exclude_none=True) for m in settings.models]},
         themeSwitch=True,
         welcome=(

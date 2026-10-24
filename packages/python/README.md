@@ -18,6 +18,7 @@ app.include_router(
         path="/",
         url="chat",
         title="My agent",
+        favicon="favicon.ico",
         # Other keyword arguments are passed as options of the JS `Chat`
         welcome="## How can I help you today?",
         examples=["What can you do?"],

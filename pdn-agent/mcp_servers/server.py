@@ -1,6 +1,7 @@
 """Pathogen Data Network MCP server, with the tools of each resource registered from their own module"""
 
 from mcp.server.mcpserver import MCPServer
+from mcp_types import Icon
 
 # Modules of the widget tools and resources, registered on `apps` before the server reads them when created
 from . import brc_analytics_apps, geo_apps, mygene_apps, myvariant_apps, pdn_apps, string_apps  # noqa: F401
@@ -91,4 +92,16 @@ organism.
 Show STRING protein-protein interaction networks to the user in an interactive graph, for a list of proteins or one
 protein and its top partners. Use the tools of the STRING server for text answers."""
 
-mcp = MCPServer(name="pdn", title="Pathogen Data Network", instructions=INSTRUCTIONS, extensions=[apps])
+mcp = MCPServer(
+  name="pdn",
+  title="Pathogen Data Network",
+  instructions=INSTRUCTIONS,
+  icons=[
+    Icon(
+      src="https://pathogendatanetwork.org/wp-content/uploads/2024/10/logo_PDN_notext-150x150.png",
+      mime_type="image/png",
+      sizes=["150x150"],
+    ),
+  ],
+  extensions=[apps],
+)
