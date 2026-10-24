@@ -113,6 +113,8 @@ Settings chosen by the user are saved in `localStorage` (key `light-chat-setting
 
 Effort levels are defined per model, lowest first, as models support different levels. The level picked is kept when switching to a model that has it, otherwise the new model default is used. Models without `effort` hide the slider and send no effort.
 
+The model and effort of the last message are saved with the conversation, and picked again when it is opened from the history. A new conversation keeps the model of the one open.
+
 Pass an `apply` callback to change how a value is added to the request. It receives the request (`url` as a `URL`, `headers` and `body` objects) and the value:
 
 ```js

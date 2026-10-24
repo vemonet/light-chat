@@ -233,6 +233,9 @@ function titleOf(messages: Message[]) {
 interface Thread {
   messages: Message[];
   streaming: boolean;
+  /** Model and effort of the last message sent */
+  model?: string;
+  effort?: string;
 }
 
 /** Chat state and actions, used by the `Chat` component and to drive it from code */
@@ -286,6 +289,8 @@ export function createChat(options: ChatOptions) {
       messages,
       createdAt: messages[0].createdAt,
       updatedAt: new Date(),
+      model: thread.model,
+      effort: thread.effort,
     };
     saving = saving.then(async () => {
       try {
@@ -306,14 +311,21 @@ export function createChat(options: ChatOptions) {
     );
 
   /** Show a conversation, the one left is kept in memory only while it streams */
-  function show(id: string, messages: Message[] = []) {
+  function show(id: string, thread: Omit<Thread, "streaming"> = { messages: [] }) {
     const prev = state.conversationId;
     if (id === prev) return;
-    if (!state.threads[id]) setState("threads", id, { messages, streaming: false });
+    if (!state.threads[id]) setState("threads", id, { ...thread, streaming: false });
     setState("conversationId", id);
     if (!state.threads[prev]?.streaming) drop(prev);
     // Without history the conversation left can not be reopened, its response is stopped
     else if (!history) runs.get(prev)?.controller.abort();
+    // The model last used in the conversation is picked again, a new conversation keeps the current one.
+    // Not saved in localStorage, which keeps the model picked by the user for new chats
+    const { model, effort } = state.threads[id];
+    if (model && config.models.some((m) => m.name === model)) {
+      setSettings("model", model);
+      setSettings("effort", effortFor(config, model, effort));
+    }
   }
 
   async function send(text: string, files: FilePart[] = []) {
@@ -328,6 +340,7 @@ export function createChat(options: ChatOptions) {
     setState("threads", id, "messages", (m) => [...m, newMessage("user", parts)]);
     const messages = [...unwrap(state.threads[id].messages)];
     setState("threads", id, "messages", (m) => [...m, newMessage("assistant", [])]);
+    setState("threads", id, { model: settings.model, effort: settings.effort });
     void persist(id);
     const i = state.threads[id].messages.length - 1;
     setState("threads", id, "streaming", true);
@@ -462,7 +475,7 @@ export function createChat(options: ChatOptions) {
       if (!conversation || run !== opening) return;
       // Dates may come back as strings from custom stores
       const messages = conversation.messages.map((m) => ({ ...m, createdAt: new Date(m.createdAt) }));
-      show(id, messages);
+      show(id, { messages, model: conversation.model, effort: conversation.effort });
     } catch (err) {
       fail(err);
     }

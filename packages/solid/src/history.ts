@@ -9,6 +9,9 @@ export interface ConversationSummary {
 export interface Conversation extends ConversationSummary {
   messages: Message[];
   createdAt: Date;
+  /** Model and effort of the last message sent, picked again when the conversation is opened */
+  model?: string;
+  effort?: string;
 }
 
 /** A message matching a search, shown as one row in the sidebar */
