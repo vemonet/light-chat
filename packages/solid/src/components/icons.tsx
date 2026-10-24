@@ -94,6 +94,13 @@ export const ActivityIcon = () => (
   </Svg>
 );
 
+export const AppIcon = () => (
+  <Svg>
+    <rect x="2" y="4" width="20" height="16" rx="2" />
+    <path d="M10 4v4M2 8h20M6 4v4" />
+  </Svg>
+);
+
 export const ChevronIcon = () => (
   <Svg>
     <path d="m6 9 6 6 6-6" />

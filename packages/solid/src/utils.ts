@@ -1,5 +1,14 @@
 export const uid = () => Math.random().toString(36).slice(2, 12);
 
+/** Readable tool name: get_weather or getWeather become "Get weather" */
+export const humanize = (name: string) => {
+  const words = name
+    .replace(/([a-z0-9])([A-Z])/g, (_, a: string, b: string) => `${a} ${b.toLowerCase()}`)
+    .replace(/[_-]+/g, " ")
+    .trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+};
+
 export interface PatchOperation {
   op: "add" | "remove" | "replace" | "move" | "copy" | "test";
   path: string;

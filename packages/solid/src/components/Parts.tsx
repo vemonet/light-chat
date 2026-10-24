@@ -12,6 +12,7 @@ import type {
   ToolPart,
 } from "../types.ts";
 import { ActivityIcon, AgentIcon, BulbIcon, ChevronIcon, CloseIcon, FileIcon, StepIcon, ToolIcon } from "./icons.tsx";
+import { humanize } from "../utils.ts";
 import { hasUi, Widget, WIDGET_ACTIVITY } from "./Widget.tsx";
 
 /** Copy to clipboard and briefly flag the element with `data-copied` for feedback */
@@ -109,15 +110,6 @@ function Code(props: { value: string }) {
     </pre>
   );
 }
-
-/** Readable tool name: get_weather or getWeather become "Get weather" */
-export const humanize = (name: string) => {
-  const words = name
-    .replace(/([a-z0-9])([A-Z])/g, (_, a: string, b: string) => `${a} ${b.toLowerCase()}`)
-    .replace(/[_-]+/g, " ")
-    .trim();
-  return words.charAt(0).toUpperCase() + words.slice(1);
-};
 
 /** Tool label with its MCP server, e.g. "Expasy: search sparql examples" */
 const toolLabel = (t: ToolPart) => {

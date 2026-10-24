@@ -125,7 +125,7 @@ function Stars(props: { n: number }) {
 }
 
 export default function Widget() {
-  const mcp = createMcpApp<VariantCardData>("MyVariant card", "show_variant_card");
+  const mcp = createMcpApp<VariantCardData>("MyVariant variant card", "show_variant_card");
   return (
     <Show
       when={mcp.data()?.variants?.length ? mcp.data() : undefined}

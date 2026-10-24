@@ -1,8 +1,8 @@
 import { createEffect, createResource, createSignal, For, onCleanup, Show, type JSX } from "solid-js";
 import type { ChatController } from "../store.ts";
 import type { McpServerInfo } from "../types.ts";
+import { humanize } from "../utils.ts";
 import { CheckIcon, ChevronIcon, EyeIcon, EyeOffIcon, GaugeIcon, KeyIcon, PlugIcon } from "./icons.tsx";
-import { humanize } from "./Parts.tsx";
 
 /** Toolbar button toggling a popover above it, closed on click outside or Escape */
 function Popover(props: {

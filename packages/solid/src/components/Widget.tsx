@@ -2,7 +2,8 @@ import { createEffect, createResource, createSignal, on, Match, onCleanup, Show,
 import { unwrap } from "solid-js/store";
 import { ChatContext, type ChatController } from "../store.ts";
 import type { ActivityPart, McpRequest } from "../types.ts";
-import { CloseIcon } from "./icons.tsx";
+import { humanize } from "../utils.ts";
+import { AppIcon, CloseIcon } from "./icons.tsx";
 import { version } from "../../package.json";
 
 /** Activity type of tool results with a UI, from the AG-UI MCP Apps middleware */
@@ -158,6 +159,13 @@ export function Widget(props: { part: ActivityPart }) {
   const [ui] = createResource(() => loadUi(content, chat.mcpRequest));
   const [height, setHeight] = createSignal<number>();
   const [fullscreen, setFullscreen] = createSignal(false);
+  // Name the MCP App gives itself on initialize, e.g. "GEO series explorer", else from the tool name
+  const [appName, setAppName] = createSignal<string>();
+  const caption = () => {
+    const name = appName();
+    if (name) return /\s/.test(name) ? name : humanize(name);
+    return humanize(content.tool?.name ?? "") || "Interactive view";
+  };
   let frame: HTMLIFrameElement | undefined;
   let rpcId = 0;
   const isApp = () => ui.state === "ready" && ui().kind === "app";
@@ -201,6 +209,7 @@ export function Widget(props: { part: ActivityPart }) {
     try {
       switch (method) {
         case "ui/initialize":
+          setAppName(params?.appInfo?.title || params?.appInfo?.name);
           return reply({
             protocolVersion: params?.protocolVersion ?? PROTOCOL_VERSION,
             hostInfo: { name: "light-chat", version },
@@ -306,57 +315,69 @@ export function Widget(props: { part: ActivityPart }) {
   });
 
   return (
-    <Switch>
-      <Match when={ui.error}>
-        <div class="lc-error">Could not load the UI: {ui.error?.message ?? String(ui.error)}</div>
-      </Match>
-      <Match when={ui.loading}>
-        <div class="lc-widget-loading">Loading UI</div>
-      </Match>
-      <Match when={ui()?.kind === "unsupported" && ui()}>
-        {(u) => <div class="lc-widget-loading">Unsupported UI resource: {(u() as { mimeType: string }).mimeType}</div>}
-      </Match>
-      <Match when={ui()}>
-        {(u) => {
-          const value = u();
-          const app = value.kind === "app" ? value : undefined;
-          return (
-            <div
-              class="lc-widget"
-              classList={{
-                "lc-widget-border": app?.meta.prefersBorder !== false,
-                "lc-widget-fullscreen": fullscreen(),
-              }}
-            >
-              <Show when={fullscreen()}>
-                <div class="lc-widget-bar">
-                  <button
-                    type="button"
-                    class="lc-widget-close"
-                    aria-label="Exit full screen"
-                    onClick={() => setMode("inline")}
-                  >
-                    <CloseIcon />
-                  </button>
-                </div>
-              </Show>
-              <iframe
-                ref={frame}
-                title="Tool UI"
-                // External pages keep their own origin, HTML from tools runs in an opaque origin
-                sandbox={
-                  value.kind === "url" ? "allow-scripts allow-same-origin allow-forms" : "allow-scripts allow-forms"
-                }
-                allow={app ? allowOf(app.meta.permissions) : undefined}
-                src={value.kind === "url" ? value.url : undefined}
-                srcdoc={app ? withCsp(app.html, app.meta.csp) : value.kind === "html" ? value.html : undefined}
-                // Fills the screen below the bar when full screen
-                style={{ height: fullscreen() ? undefined : `${height() ?? (app ? 160 : 400)}px` }}
-              />
-            </div>
-          );
-        }}
-      </Match>
-    </Switch>
+    <div class="lc-widget-block">
+      <div class="lc-widget-caption" title={content.tool?.name}>
+        <AppIcon />
+        <span>{caption()}</span>
+      </div>
+      <Switch>
+        <Match when={ui.error}>
+          <div class="lc-error">Could not load the UI: {ui.error?.message ?? String(ui.error)}</div>
+        </Match>
+        <Match when={ui.loading}>
+          <div class="lc-widget-loading">Loading UI</div>
+        </Match>
+        <Match when={ui()?.kind === "unsupported" && ui()}>
+          {(u) => (
+            <div class="lc-widget-loading">Unsupported UI resource: {(u() as { mimeType: string }).mimeType}</div>
+          )}
+        </Match>
+        <Match when={ui()}>
+          {(u) => {
+            const value = u();
+            const app = value.kind === "app" ? value : undefined;
+            return (
+              <div
+                class="lc-widget"
+                classList={{
+                  "lc-widget-border": app?.meta.prefersBorder !== false,
+                  "lc-widget-fullscreen": fullscreen(),
+                }}
+              >
+                <Show when={fullscreen()}>
+                  <div class="lc-widget-bar">
+                    <span class="lc-widget-caption">
+                      <AppIcon />
+                      <span>{caption()}</span>
+                    </span>
+                    <button
+                      type="button"
+                      class="lc-widget-close"
+                      aria-label="Exit full screen"
+                      onClick={() => setMode("inline")}
+                    >
+                      <CloseIcon />
+                    </button>
+                  </div>
+                </Show>
+                <iframe
+                  ref={frame}
+                  title="Tool UI"
+                  // External pages keep their own origin, HTML from tools runs in an opaque origin
+                  sandbox={
+                    value.kind === "url" ? "allow-scripts allow-same-origin allow-forms" : "allow-scripts allow-forms"
+                  }
+                  allow={app ? allowOf(app.meta.permissions) : undefined}
+                  src={value.kind === "url" ? value.url : undefined}
+                  srcdoc={app ? withCsp(app.html, app.meta.csp) : value.kind === "html" ? value.html : undefined}
+                  // Fills the screen below the bar when full screen
+                  style={{ height: fullscreen() ? undefined : `${height() ?? (app ? 160 : 400)}px` }}
+                />
+              </div>
+            );
+          }}
+        </Match>
+      </Switch>
+    </div>
   );
 }

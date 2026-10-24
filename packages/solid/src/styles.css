@@ -1447,6 +1447,35 @@
 }
 
 /* Tool UI (MCP Apps, MCP-UI) in a sandboxed iframe, full screen on request */
+.lc-widget-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* Name of the app above its view, so it is clear what it shows */
+.lc-widget-caption {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--lc-muted);
+  font-size: 13px;
+}
+
+.lc-widget-caption svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+.lc-widget-caption span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .lc-widget {
   position: relative;
   overflow: hidden;
@@ -1481,7 +1510,9 @@
 /* Host bar above a full screen widget, so its controls never cover the app */
 .lc-widget-bar {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   padding: 6px 10px;
   border-bottom: 1px solid var(--lc-border);
 }

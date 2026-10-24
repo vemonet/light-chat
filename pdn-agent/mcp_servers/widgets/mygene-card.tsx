@@ -91,7 +91,7 @@ const kb = (bp: number) => (bp >= 1000 ? `${(bp / 1000).toFixed(1)} kb` : `${bp}
 const fmt = (n: number) => n.toLocaleString("en-US");
 
 export default function Widget() {
-  const mcp = createMcpApp<GeneCardData>("MyGene card", "show_gene_card");
+  const mcp = createMcpApp<GeneCardData>("MyGene gene card", "show_gene_card");
   return (
     <Show
       when={mcp.data()?.symbol ? mcp.data() : undefined}
