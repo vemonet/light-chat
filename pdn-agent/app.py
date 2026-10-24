@@ -23,6 +23,7 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from light_chat import chat_router, setup_logging
 from light_chat.mcp_apps import PROXIED_REQUEST, UIToolset, proxied_response, ui_meta
+from mcp.server.context import CallNext, HandlerResult, ServerRequestContext
 from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import BaseModel, BeforeValidator, Field, SecretStr
 from pydantic_ai import Agent, RunContext
@@ -97,6 +98,9 @@ class Settings(BaseSettings):
     allowed_hosts: CommaList = []
     # JSONL file where each chat request is appended with its response
     log_file: Path = Path("data/pdn_agent_logs.jsonl")
+    # JSONL file where each call to a tool of the local MCP server is appended with its result, from the agent or
+    # from MCP clients on `/mcp`
+    mcp_log_file: Path = Path("data/mcp_logs.jsonl")
     # Hide the MCP tools from the model until it finds them with the `search_tools` tool, instead of sending them all
     defer_tools: bool = True
 
@@ -204,7 +208,7 @@ async def lifespan(_app: FastAPI):
         yield
 
 
-app = FastAPI(title="Federated data ecosystem agent", lifespan=lifespan)
+app = FastAPI(title="Pathogen Data Network agent", lifespan=lifespan)
 
 
 def last_user_text(body: dict) -> str | None:
@@ -214,6 +218,51 @@ def last_user_text(body: dict) -> str | None:
     if isinstance(content, list):
         content = " ".join(c.get("text", "") for c in content if isinstance(c, dict))
     return content
+
+
+def append_log(path: Path, entry: dict[str, Any]) -> None:
+    """Append an entry as one line of a JSONL file, a warning if it cannot be written"""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False, default=str) + "\n")
+    except OSError as e:
+        logger.warning(f"Could not write the log to {path}: {e!r}")
+
+
+async def log_tool_calls(ctx: ServerRequestContext[Any, Any], call_next: CallNext) -> HandlerResult:
+    """MCP server middleware appending each tool call, with its args and result, to the MCP log file"""
+    if ctx.method != "tools/call":
+        return await call_next(ctx)
+    start = time.monotonic()
+    timestamp = datetime.now(UTC).isoformat()
+    result: HandlerResult = None
+    error: str | None = None
+    try:
+        result = await call_next(ctx)
+        return result
+    except Exception as e:
+        # Protocol errors (unknown tool, invalid params) are raised, failed tools return a result with `isError`
+        error = repr(e)
+        raise
+    finally:
+        params = ctx.params or {}
+        client = ctx.session.client_params.client_info if ctx.session.client_params else None
+        entry = {
+            "timestamp": timestamp,
+            "duration": round(time.monotonic() - start, 2),
+            "tool": params.get("name"),
+            "args": params.get("arguments"),
+            "result": result.model_dump(mode="json", by_alias=True, exclude_none=True)
+            if isinstance(result, BaseModel)
+            else result,
+            "error": error,
+            "client": client.model_dump(mode="json", exclude_none=True) if client else None,
+        }
+        append_log(settings.mcp_log_file, entry)
+
+
+mcp.middleware.append(log_tool_calls)
 
 
 async def log_run(events: AsyncIterator[BaseEvent], model: str, question: str | None) -> AsyncIterator[BaseEvent]:
@@ -250,12 +299,7 @@ async def log_run(events: AsyncIterator[BaseEvent], model: str, question: str | 
             "tool_calls": list(tool_calls.values()),
             "error": error,
         }
-        try:
-            settings.log_file.parent.mkdir(parents=True, exist_ok=True)
-            with settings.log_file.open("a", encoding="utf-8") as f:
-                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-        except OSError as e:
-            logger.warning(f"Could not write the request log to {settings.log_file}: {e!r}")
+        append_log(settings.log_file, entry)
 
 
 @app.post("/chat")
