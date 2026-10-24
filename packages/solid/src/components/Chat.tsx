@@ -22,6 +22,6 @@ function injectStyles() {
 export function Chat(props: ChatProps) {
   injectStyles();
   const chat = props.controller ?? createChat(props);
-  if (!props.controller) onCleanup(() => chat.stop());
+  if (!props.controller) onCleanup(() => chat.stopAll());
   return <App chat={chat} />;
 }

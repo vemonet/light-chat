@@ -88,7 +88,7 @@ const chat = new Chat("chat", {
 });
 
 chat.send("Hello"); // send a message programmatically, optionally with files as 2nd argument
-chat.stop(); // abort the current response
+chat.stop(); // abort the response of the open conversation, others keep streaming in the background
 chat.clear(); // start a new conversation
 chat.open(id); // open a conversation from the history
 chat.conversationId; // id of the current conversation, sent as AG-UI threadId
@@ -127,7 +127,7 @@ Custom `HttpConnector` subclasses can change the defaults by setting `this.apply
 
 ### History
 
-Conversations are listed in a sidebar (closed on first visit unless `sidebarOpen: true`, then the user choice is remembered per browser) and saved in IndexedDB after each message and response. The title is the start of the first user message.
+Conversations are listed in a sidebar (closed on first visit unless `sidebarOpen: true`, then the user choice is remembered per browser) and saved in IndexedDB after each message and response. The title is the start of the first user message. A response keeps streaming when another conversation is opened or started, so several conversations can run at the same time, a pulsing dot marks them in the sidebar.
 
 To use your own API or database, pass an object implementing `HistoryStore`, or extend `IndexedDBHistory` to keep a local copy:
 

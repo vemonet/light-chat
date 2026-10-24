@@ -101,7 +101,7 @@ export class Chat {
 
   /** Unmount the UI */
   destroy(): void {
-    this.#chat.stop();
+    this.#chat.stopAll();
     this.#dispose();
   }
 }

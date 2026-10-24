@@ -229,15 +229,30 @@ function titleOf(messages: Message[]) {
   return text.slice(0, 80) || (file?.type === "file" ? file.name : "") || "New conversation";
 }
 
+/** Messages of a conversation, kept in memory while it is open or streaming */
+interface Thread {
+  messages: Message[];
+  streaming: boolean;
+}
+
 /** Chat state and actions, used by the `Chat` component and to drive it from code */
 export function createChat(options: ChatOptions) {
   if (!options.connector && !options.url) throw new Error("light-chat: provide a `url` or a `connector`");
+  const firstId = uid();
   const [state, setState] = createStore({
-    messages: [] as Message[],
-    streaming: false,
-    conversationId: uid(),
+    /** Open conversation and conversations streaming in the background, by id */
+    threads: { [firstId]: { messages: [], streaming: false } } as Record<string, Thread>,
+    conversationId: firstId,
     conversations: [] as ConversationSummary[],
     theme: initTheme(options),
+    /** Messages of the open conversation */
+    get messages(): Message[] {
+      return this.threads[this.conversationId]?.messages ?? [];
+    },
+    /** Whether the open conversation is streaming a response */
+    get streaming(): boolean {
+      return this.threads[this.conversationId]?.streaming ?? false;
+    },
   });
   const config = settingsConfig(options.settings);
   const [settings, setSettings] = createStore(initSettings(config));
@@ -248,9 +263,8 @@ export function createChat(options: ChatOptions) {
       : options.history === true || !options.history
         ? new IndexedDBHistory()
         : options.history;
-  let controller: AbortController | undefined;
-  // Resolves when the current response is done, so switching conversation waits for it to be saved
-  let running: Promise<void> | undefined;
+  // Responses being streamed by conversation id, `done` resolves once the response is saved
+  const runs = new Map<string, { controller: AbortController; done: Promise<void> }>();
 
   const fail = (err: unknown) => options.onError?.(err instanceof Error ? err : new Error(String(err)));
 
@@ -261,12 +275,13 @@ export function createChat(options: ChatOptions) {
   // Saves run one after the other, so a slow early save can not overwrite a later one
   let saving = Promise.resolve();
 
-  /** Save the current conversation, a snapshot is sent so stores never hold live objects */
-  function persist() {
-    if (!history || !state.messages.length) return saving;
-    const messages = structuredClone(unwrap(state.messages));
+  /** Save a conversation, a snapshot is sent so stores never hold live objects */
+  function persist(id: string) {
+    const thread = state.threads[id];
+    if (!history || !thread?.messages.length) return saving;
+    const messages = structuredClone(unwrap(thread.messages));
     const conversation = {
-      id: state.conversationId,
+      id,
       title: titleOf(messages),
       messages,
       createdAt: messages[0].createdAt,
@@ -283,21 +298,40 @@ export function createChat(options: ChatOptions) {
     return saving;
   }
 
+  /** Remove a conversation from memory, it stays in the history */
+  const drop = (id: string) =>
+    setState(
+      "threads",
+      produce((t) => delete t[id]),
+    );
+
+  /** Show a conversation, the one left is kept in memory only while it streams */
+  function show(id: string, messages: Message[] = []) {
+    const prev = state.conversationId;
+    if (id === prev) return;
+    if (!state.threads[id]) setState("threads", id, { messages, streaming: false });
+    setState("conversationId", id);
+    if (!state.threads[prev]?.streaming) drop(prev);
+    // Without history the conversation left can not be reopened, its response is stopped
+    else if (!history) runs.get(prev)?.controller.abort();
+  }
+
   async function send(text: string, files: FilePart[] = []) {
     text = text.trim();
     if ((!text && !files.length) || state.streaming) return;
+    // The response keeps streaming into its conversation when another one is opened
+    const id = state.conversationId;
     let finished!: () => void;
-    running = new Promise((resolve) => (finished = resolve));
+    const ctrl = new AbortController();
+    runs.set(id, { controller: ctrl, done: new Promise((resolve) => (finished = resolve)) });
     const parts: Part[] = text ? [...files, { type: "text", text }] : files;
-    setState("messages", (m) => [...m, newMessage("user", parts)]);
-    const messages = [...unwrap(state.messages)];
-    setState("messages", (m) => [...m, newMessage("assistant", [])]);
-    void persist();
-    const i = state.messages.length - 1;
-    const ctrl = (controller = new AbortController());
-    setState("streaming", true);
-    const threadId = state.conversationId;
-    const ctx = { messages, settings: { ...settings }, apply: config.apply, signal: ctrl.signal, threadId };
+    setState("threads", id, "messages", (m) => [...m, newMessage("user", parts)]);
+    const messages = [...unwrap(state.threads[id].messages)];
+    setState("threads", id, "messages", (m) => [...m, newMessage("assistant", [])]);
+    void persist(id);
+    const i = state.threads[id].messages.length - 1;
+    setState("threads", id, "streaming", true);
+    const ctx = { messages, settings: { ...settings }, apply: config.apply, signal: ctrl.signal, threadId: id };
     const events = connector.stream(ctx)[Symbol.asyncIterator]();
     // Race each event against abort, so stop() is immediate even if a connector ignores the signal
     const aborted = new Promise<never>((_, reject) =>
@@ -309,6 +343,8 @@ export function createChat(options: ChatOptions) {
         const { value, done } = await Promise.race([events.next(), aborted]);
         if (done) break;
         setState(
+          "threads",
+          id,
           "messages",
           i,
           produce((m) => apply(m, value)),
@@ -317,7 +353,7 @@ export function createChat(options: ChatOptions) {
     } catch (err) {
       if (!ctrl.signal.aborted) {
         const error = err instanceof Error ? err : new Error(String(err));
-        setState("messages", i, "error", error.message);
+        setState("threads", id, "messages", i, "error", error.message);
         options.onError?.(error);
       }
     } finally {
@@ -325,6 +361,8 @@ export function createChat(options: ChatOptions) {
       // Tools without result (client-side or interrupted) and open steps are considered done when the stream ends
       const end = Date.now();
       setState(
+        "threads",
+        id,
         "messages",
         i,
         produce((m) => {
@@ -332,9 +370,11 @@ export function createChat(options: ChatOptions) {
           close(m.parts, end);
         }),
       );
-      setState("streaming", false);
-      controller = undefined;
-      await persist();
+      setState("threads", id, "streaming", false);
+      await persist(id);
+      runs.delete(id);
+      // A conversation finished in the background is reloaded from the history when opened
+      if (id !== state.conversationId) drop(id);
       finished();
     }
   }
@@ -344,9 +384,9 @@ export function createChat(options: ChatOptions) {
     if (i < 0) return;
     // Clicking the active rating again clears it
     const next = state.messages[i].rating === rating ? null : rating;
-    setState("messages", i, "rating", next);
+    setState("threads", state.conversationId, "messages", i, "rating", next);
     options.onRate?.(unwrap(state.messages[i]), next);
-    void persist();
+    void persist(state.conversationId);
   }
 
   function setSetting<K extends keyof ChatSettings>(key: K, value: ChatSettings[K]) {
@@ -371,7 +411,11 @@ export function createChat(options: ChatOptions) {
     }
   }
 
-  const stop = () => controller?.abort();
+  /** Stop the response of the open conversation */
+  const stop = () => runs.get(state.conversationId)?.controller.abort();
+
+  /** Stop the responses of all conversations, e.g. when the chat is unmounted */
+  const stopAll = () => runs.forEach((r) => r.controller.abort());
 
   /** Send an MCP request of a widget to its server through the connector */
   async function mcpRequest(request: McpRequest) {
@@ -385,38 +429,40 @@ export function createChat(options: ChatOptions) {
 
   /** Save the context a widget gives to the model, sent with the next requests */
   function setWidgetContext(activityId: string, context: unknown) {
+    const id = state.conversationId;
     const i = state.messages.findIndex((m) => findActivity(m.parts, activityId));
     if (i < 0) return;
     setState(
+      "threads",
+      id,
       "messages",
       i,
       produce((m) => (findActivity(m.parts, activityId)!.context = context)),
     );
     // Saved with the response when it is streaming
-    if (!state.streaming) void persist();
+    if (!state.streaming) void persist(id);
   }
 
-  /** Stop the current response and wait for it to be saved before switching conversation */
-  async function settle() {
-    stop();
-    await running;
-  }
+  // Only the last conversation opened is shown when an earlier one loads after it
+  let opening = 0;
 
   /** Start a new empty conversation */
   async function newConversation() {
-    await settle();
-    setState({ messages: [], conversationId: uid() });
+    opening++;
+    show(uid());
   }
 
   async function openConversation(id: string) {
     if (!history || id === state.conversationId) return;
-    await settle();
+    const run = ++opening;
+    // A conversation streaming in the background is already in memory, more recent than the history
+    if (state.threads[id]) return show(id);
     try {
       const conversation = await history.get(id);
-      if (!conversation) return;
+      if (!conversation || run !== opening) return;
       // Dates may come back as strings from custom stores
       const messages = conversation.messages.map((m) => ({ ...m, createdAt: new Date(m.createdAt) }));
-      setState({ messages, conversationId: id });
+      show(id, messages);
     } catch (err) {
       fail(err);
     }
@@ -425,7 +471,9 @@ export function createChat(options: ChatOptions) {
   async function deleteConversation(id: string) {
     if (!history) return;
     if (id === state.conversationId) await newConversation();
-    // A queued save would bring the conversation back
+    // Stop its response, and wait for queued saves that would bring the conversation back
+    runs.get(id)?.controller.abort();
+    await runs.get(id)?.done;
     await saving;
     try {
       await history.delete(id);
@@ -447,6 +495,7 @@ export function createChat(options: ChatOptions) {
     history,
     send,
     stop,
+    stopAll,
     rate,
     mcpRequest,
     setWidgetContext,

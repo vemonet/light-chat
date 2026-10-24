@@ -326,6 +326,21 @@
   opacity: 1;
 }
 
+.lc-conversation-running {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  margin: 0 10px 0 4px;
+  border-radius: 50%;
+  background: var(--lc-fg);
+  animation: lc-pulse 1.2s infinite ease-in-out;
+}
+
+/* The delete button replaces the running dot on hover */
+.lc-conversation:hover .lc-conversation-running {
+  display: none;
+}
+
 .lc-root .lc-conversation-delete {
   display: none;
   place-items: center;

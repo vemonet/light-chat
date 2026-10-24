@@ -254,6 +254,10 @@ export function Sidebar(props: {
                   >
                     {c.title}
                   </button>
+                  {/* Response still streaming, e.g. after switching to another conversation */}
+                  <Show when={chat.state.threads[c.id]?.streaming}>
+                    <span class="lc-conversation-running" role="status" aria-label="Responding" title="Responding" />
+                  </Show>
                   <button
                     type="button"
                     class="lc-conversation-delete"
