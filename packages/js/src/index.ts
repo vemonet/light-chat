@@ -27,6 +27,7 @@ export type {
   HistoryStore,
   HttpConnectorOptions,
   McpRequest,
+  McpServerInfo,
   Message,
   ModelOption,
   Part,

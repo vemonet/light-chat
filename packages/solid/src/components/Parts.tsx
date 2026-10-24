@@ -111,7 +111,7 @@ function Code(props: { value: string }) {
 }
 
 /** Readable tool name: get_weather or getWeather become "Get weather" */
-const humanize = (name: string) => {
+export const humanize = (name: string) => {
   const words = name
     .replace(/([a-z0-9])([A-Z])/g, (_, a: string, b: string) => `${a} ${b.toLowerCase()}`)
     .replace(/[_-]+/g, " ")

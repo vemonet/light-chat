@@ -3,7 +3,7 @@ import type { ChatController } from "../store.ts";
 import type { FilePart } from "../types.ts";
 import { PlusIcon, ReturnIcon, StopIcon } from "./icons.tsx";
 import { FileChip } from "./Parts.tsx";
-import { ApiKeySetting, EffortSetting, ModelSetting } from "./Settings.tsx";
+import { ApiKeySetting, EffortSetting, McpServersSetting, ModelSetting } from "./Settings.tsx";
 
 const readFile = (file: File) =>
   new Promise<FilePart>((resolve, reject) => {
@@ -19,7 +19,10 @@ const readFile = (file: File) =>
     reader.readAsDataURL(file);
   });
 
-/** Input box (attachments, auto-growing textarea, send), with a toolbar row under it (files, model, effort, API key) */
+/**
+ * Input box (attachments, auto-growing textarea, send), with a toolbar row under it (files, MCP servers, model, effort,
+ * API key)
+ */
 export function Composer(props: { chat: ChatController; onSend: () => void }) {
   const { chat } = props;
   const [input, setInput] = createSignal("");
@@ -118,8 +121,12 @@ export function Composer(props: { chat: ChatController; onSend: () => void }) {
           </Show>
         </div>
       </div>
-      {/* Toolbar right under the input box: files on the left, enabled settings on the right */}
-      <Show when={attachments || config.models.length || chat.effortLevels().length || config.apiKey}>
+      {/* Toolbar right under the input box: files and MCP servers on the left, enabled settings on the right */}
+      <Show
+        when={
+          attachments || chat.options.mcpServers || config.models.length || chat.effortLevels().length || config.apiKey
+        }
+      >
         <div class="lc-toolbar">
           <Show when={attachments}>
             <button
@@ -142,6 +149,7 @@ export function Composer(props: { chat: ChatController; onSend: () => void }) {
               }}
             />
           </Show>
+          <Show when={chat.options.mcpServers}>{(source) => <McpServersSetting source={source()} />}</Show>
           {/* Settings on the right, API key at the edge */}
           <div class="lc-toolbar-settings">
             <Show when={config.models.length}>

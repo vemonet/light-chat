@@ -5,8 +5,8 @@ import json
 import logging
 import os
 import time
-from collections.abc import AsyncIterator, Sequence
-from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
+from contextlib import AsyncExitStack, asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -30,7 +30,7 @@ from pydantic_ai import Agent, RunContext
 from pydantic_ai.mcp import MCPToolset
 from pydantic_ai.models.openai import OpenAIChatModel, OpenAIChatModelSettings
 from pydantic_ai.providers.openai import OpenAIProvider
-from pydantic_ai.toolsets import AbstractToolset, ToolsetTool
+from pydantic_ai.toolsets import AbstractToolset, CombinedToolset, ToolsetTool
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 from pydantic_settings import BaseSettings, NoDecode
 
@@ -64,6 +64,21 @@ class Model(BaseModel):
     effort: list[Effort] = []
     # Level used when the request has none, the middle one in the UI when unset
     default_effort: Effort | None = Field(None, serialization_alias="defaultEffort")
+
+
+class McpServer(BaseModel):
+    """MCP server used by the agent, with its number of tools, None when it did not answer at startup"""
+
+    id: str
+    url: str
+    tools: int | None
+
+
+class Info(BaseModel):
+    """Models available for `/chat`, and the MCP servers of the agent"""
+
+    models: list[Model]
+    mcp_servers: list[McpServer] = Field(serialization_alias="mcpServers")
 
 
 def parse_models(value: Any) -> Any:
@@ -112,8 +127,8 @@ provider = OpenAIProvider(
 )
 # Public MCP servers, used as is
 REMOTE_MCP_SERVERS = {
-    "string": "https://mcp.string-db.org/",
     "expasy": "https://chat.expasy.org/mcp/",
+    "string": "https://mcp.string-db.org/",
     "brc-analytics": "https://brc-analytics.org/api/v1/mcp/",
     # "excalidraw": "https://mcp.excalidraw.com/mcp",
 }
@@ -132,30 +147,30 @@ class AppsToolset(UIToolset):
 # MCP server of this app, called in-process
 local_toolset = AppsToolset(mcp, id=mcp.name)
 remote_toolsets = [AppsToolset(url, id=id) for id, url in REMOTE_MCP_SERVERS.items()]
-# Time of the last failed check of remote servers by ID: they are skipped instead of failing every run, and checked
-# again after a while
-failed_checks: dict[str, float] = {}
-RETRY_SECONDS = 300
+# Remote servers connected at startup, their sessions kept open for the app lifetime so runs do not reconnect
+connected_remote: list[MCPToolset] = []
 # Toolsets answering the MCP requests of widgets, with the server of the provenance graph
 ui_toolsets = [local_toolset, *remote_toolsets, UIToolset(provenance_server, id="provenance")]
-# MCP server ID of each tool, for the provenance graph (those of remote servers are read when checked). Local tools get
-# the resource of their module instead, e.g. `ncbi` for `mcp_servers.ncbi.apps` (the SDK has no public access to the
-# functions of the tools)
+# MCP server ID of each tool, for the provenance graph (those of remote servers are read when they connect). Local
+# tools get the resource of their module instead, e.g. `ncbi` for `mcp_servers.ncbi.apps` (the SDK has no public access
+# to the functions of the tools)
 tool_servers = {
     t.name: t.fn.__module__.split(".")[1].removesuffix("_apps").replace("_", "-")
     for t in mcp._tool_manager.list_tools()
 }
 # Instructions of the MCP servers by ID, added to the system prompt (those of remote servers are read at startup)
 server_instructions = {mcp.name: mcp.instructions} if mcp.instructions else {}
+# Number of tools of each MCP server by ID, read at startup, None for the remote ones not answering then
+server_tools: dict[str, int | None] = {}
 
 
-def agent_toolsets(toolsets: Sequence[MCPToolset]) -> list[AbstractToolset[Any]]:
-    """Toolsets given to the agent, with their tools marked for deferred loading (tool search) if enabled"""
-    return [ts.defer_loading() for ts in toolsets] if settings.defer_tools else list(toolsets)
-
-
+# Toolsets of the agent: the remote ones combined from the list filled at startup, read by each run. Their tools are
+# marked for deferred loading (tool search) if enabled
+toolsets: list[AbstractToolset[Any]] = [local_toolset, CombinedToolset(connected_remote)]
+if settings.defer_tools:
+    toolsets = [ts.defer_loading() for ts in toolsets]
 # Failed tool calls are sent back to the model a few times, e.g. to fix an invalid query
-agent = Agent(toolsets=agent_toolsets([local_toolset]), deps_type=str, retries={"tools": 3})
+agent = Agent(toolsets=toolsets, deps_type=str, retries={"tools": 3})
 
 
 @agent.instructions
@@ -167,29 +182,23 @@ def instructions(ctx: RunContext[str]) -> str:
     return f"{prompt}\n\n{ctx.deps}" if ctx.deps else prompt
 
 
-async def check_remote(ts: MCPToolset) -> int | None:
-    """Number of tools of a remote MCP server, keeping its instructions, or None and a warning if it is unavailable"""
+async def connect_remote(stack: AsyncExitStack, ts: MCPToolset) -> int | None:
+    """Open the session of a remote MCP server until the stack closes, keeping its tools and instructions. Returns its
+    number of tools, or None and a warning if it is unavailable"""
     server_id = ts.id or ts.label
     try:
-        async with asyncio.timeout(10), ts:
+        async with asyncio.timeout(10):
+            await stack.enter_async_context(ts)
+            # Cached by the toolset while its session is open
             tools = await ts.list_tools()
-            tool_servers.update({t.name: server_id for t in tools})
-            if ts.instructions:
-                server_instructions[server_id] = ts.instructions
     except Exception as e:  # noqa: BLE001 - an unavailable server only costs its tools
         logger.warning(f"MCP server {server_id} unavailable: {e!r}")
-        failed_checks[server_id] = time.monotonic()
         return None
-    failed_checks.pop(server_id, None)
+    tool_servers.update({t.name: server_id for t in tools})
+    if ts.instructions:
+        server_instructions[server_id] = ts.instructions
+    connected_remote.append(ts)
     return len(tools)
-
-
-async def available_remote_toolsets() -> list[MCPToolset]:
-    """Remote servers that answered their last check, the ones that failed it a while ago are checked again"""
-    now = time.monotonic()
-    retry = [ts for ts in remote_toolsets if ts.id in failed_checks and now - failed_checks[ts.id] > RETRY_SECONDS]
-    await asyncio.gather(*(check_remote(ts) for ts in retry))
-    return [ts for ts in remote_toolsets if ts.id not in failed_checks]
 
 
 def log_servers(kind: str, tools: dict[str, int]) -> None:
@@ -198,13 +207,16 @@ def log_servers(kind: str, tools: dict[str, int]) -> None:
     logger.info(f"{len(tools)} {kind} MCP servers, {sum(tools.values())} tools: {servers}")
 
 
-# The session manager of the MCP server must run for the whole app lifetime
+# The session manager of the MCP server, and the sessions of the remote servers, run for the whole app lifetime
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    remote_tools = await asyncio.gather(*(check_remote(ts) for ts in remote_toolsets))
-    async with mcp.session_manager.run():
-        log_servers("local", {mcp.name: len(await mcp.list_tools())})
-        log_servers("remote", {ts.id or ts.label: n for ts, n in zip(remote_toolsets, remote_tools) if n is not None})
+    async with AsyncExitStack() as stack, mcp.session_manager.run():
+        # One after the other: the MCP client must be closed by the task that opened it
+        remote_tools = {ts.id or ts.label: await connect_remote(stack, ts) for ts in remote_toolsets}
+        local_tools = {mcp.name: len(await mcp.list_tools())}
+        server_tools.update(local_tools | remote_tools)
+        log_servers("local", local_tools)
+        log_servers("remote", {id: n for id, n in remote_tools.items() if n is not None})
         yield
 
 
@@ -324,9 +336,8 @@ async def chat(request: Request) -> Response:
     model_settings = OpenAIChatModelSettings(openai_reasoning_effort=level) if level else None
     context = "\n\n".join(f"{c['description']}:\n{c['value']}" for c in body.get("context") or [])
     adapter = await AGUIAdapter[str, str].from_request(request, agent=agent)
-    toolsets = agent_toolsets(await available_remote_toolsets())
     chat_model = OpenAIChatModel(model, provider=provider, settings=model_settings)
-    events = adapter.run_stream(model=chat_model, deps=context, toolsets=toolsets)
+    events = adapter.run_stream(model=chat_model, deps=context)
     question = last_user_text(body)
     events = log_run(split_provenance(events, tool_servers, question, model), model, question)
     return adapter.streaming_response(events)
@@ -337,10 +348,14 @@ async def favicon() -> FileResponse:
     return FileResponse(Path(__file__).parent / "static" / "favicon.png", media_type="image/png")
 
 
-@app.get("/models")
-async def models() -> list[Model]:
-    """Models available for `/chat`, with their effort levels"""
-    return settings.models
+@app.get("/info")
+async def info() -> Info:
+    """Models available for `/chat` with their effort levels, and the MCP servers of the agent with their number of
+    tools, as read at startup (no request to the remote servers, also used as healthcheck)"""
+    # Relative like `chat`, resolved by the UI against the URL of `/info`
+    urls = {mcp.name: "mcp", **REMOTE_MCP_SERVERS}
+    servers = [McpServer(id=id, url=urls[id], tools=n) for id, n in server_tools.items()]
+    return Info(models=settings.models, mcp_servers=servers)
 
 
 # Chat UI at `/`, the model and effort picked in the settings are sent in `forwardedProps`
@@ -352,6 +367,8 @@ app.include_router(
         title="Pathogen Data Network agent",
         favicon="favicon.ico",
         settings={"models": [m.model_dump(by_alias=True, exclude_none=True) for m in settings.models]},
+        # MCP servers with their number of tools, listed from a button in the toolbar
+        mcpServers="info",
         themeSwitch=True,
         welcome=(
             "## Ask about pathogens, genes, proteins and datasets\nThe agent federates the Pathogen Data Network, "

@@ -1,6 +1,8 @@
-import { createEffect, createSignal, For, onCleanup, Show, type JSX } from "solid-js";
+import { createEffect, createResource, createSignal, For, onCleanup, Show, type JSX } from "solid-js";
 import type { ChatController } from "../store.ts";
-import { CheckIcon, ChevronIcon, EyeIcon, EyeOffIcon, GaugeIcon, KeyIcon } from "./icons.tsx";
+import type { McpServerInfo } from "../types.ts";
+import { CheckIcon, ChevronIcon, EyeIcon, EyeOffIcon, GaugeIcon, KeyIcon, PlugIcon } from "./icons.tsx";
+import { humanize } from "./Parts.tsx";
 
 /** Toolbar button toggling a popover above it, closed on click outside or Escape */
 function Popover(props: {
@@ -155,5 +157,59 @@ export function ApiKeySetting(props: { chat: ChatController }) {
         </label>
       )}
     </Popover>
+  );
+}
+
+/** Servers given as is, or fetched from a URL returning `{ mcpServers }`, their URLs made absolute against it */
+async function loadServers(source: McpServerInfo[] | string): Promise<McpServerInfo[]> {
+  if (typeof source !== "string") return source;
+  try {
+    const base = new URL(source, location.href);
+    const res = await fetch(base);
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    const { mcpServers = [] } = (await res.json()) as { mcpServers?: McpServerInfo[] };
+    return mcpServers.map((s) => (s.url ? { ...s, url: new URL(s.url, base).href } : s));
+  } catch (e) {
+    // No button rather than an error, the list is only informative
+    console.warn("Failed to load the MCP servers", e);
+    return [];
+  }
+}
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+/** Button listing the MCP servers of the agent with their number of tools, hidden when there are none */
+export function McpServersSetting(props: { source: McpServerInfo[] | string }) {
+  const [servers] = createResource(() => props.source, loadServers);
+  const total = () => (servers() ?? []).reduce((sum, s) => sum + (s.tools ?? 0), 0);
+  return (
+    <Show when={servers()?.length}>
+      <Popover label="MCP servers" trigger={<PlugIcon />}>
+        {() => (
+          <div class="lc-servers">
+            <span class="lc-field-label">
+              MCP servers <span class="lc-field-value">{plural(total(), "tool")}</span>
+            </span>
+            <ul>
+              <For each={servers()}>
+                {(s) => (
+                  <li class="lc-server" classList={{ "lc-off": s.tools == null }}>
+                    <span class="lc-server-dot" />
+                    <span class="lc-server-id">{humanize(s.id)}</span>
+                    <span class="lc-server-tools">{s.tools == null ? "unavailable" : plural(s.tools, "tool")}</span>
+                    {/* Selected in one click, to add the server to another MCP client */}
+                    <Show when={s.url}>
+                      <span class="lc-server-url" title={s.url}>
+                        {s.url}
+                      </span>
+                    </Show>
+                  </li>
+                )}
+              </For>
+            </ul>
+          </div>
+        )}
+      </Popover>
+    </Show>
   );
 }

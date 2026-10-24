@@ -144,6 +144,15 @@ export interface ModelOption {
   defaultEffort?: string;
 }
 
+/** MCP server used by the agent, listed with its number of tools in the toolbar */
+export interface McpServerInfo {
+  id: string;
+  /** Endpoint of the server, relative to the URL the list was fetched from */
+  url?: string;
+  /** Number of tools, null when the server is unavailable */
+  tools?: number | null;
+}
+
 /** "auto" follows the OS preference */
 export type Theme = "auto" | "light" | "dark";
 
@@ -161,6 +170,11 @@ export interface ChatOptions {
   theme?: Theme;
   /** Show a button in the sidebar to switch between system, light and dark theme, saved in localStorage. Default: false */
   themeSwitch?: boolean;
+  /**
+   * MCP servers used by the agent, listed with their number of tools from a button in the toolbar. Either the list,
+   * or the URL of a JSON object with a `mcpServers` list, fetched once and relative to the page like `url`
+   */
+  mcpServers?: McpServerInfo[] | string;
   /** Show the + button to attach files to messages. Default: true */
   attachments?: boolean;
   /**

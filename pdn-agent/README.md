@@ -18,7 +18,8 @@ FastAPI app federating biological data resources through MCP servers, for light-
   | `brc-analytics` | [BRC Analytics](https://brc-analytics.org) ENA sequencing runs and workflows, complementing their public MCP server | `brc_ena_*`, `show_brc_workflow_matrix`                      |
   | `string`        | [STRING](https://string-db.org) protein networks, complementing their public MCP server                             | `show_string_network`                                        |
 
-- `/chat`: AG-UI endpoint, a Pydantic AI agent using the MCP server of the app, called in-process, and the public MCP servers of [STRING](https://mcp.string-db.org), [ExPASy](https://chat.expasy.org/mcp) (SPARQL over SIB resources, and the UniProt tools and widgets), [BRC Analytics](https://brc-analytics.org/api/v1/mcp/) and [Excalidraw](https://mcp.excalidraw.com/mcp). Public servers not answering are skipped, and checked again after 5 minutes
+- `/chat`: AG-UI endpoint, a Pydantic AI agent using the MCP server of the app, called in-process, and the public MCP servers of [STRING](https://mcp.string-db.org), [ExPASy](https://chat.expasy.org/mcp) (SPARQL over SIB resources, and the UniProt tools and widgets), [BRC Analytics](https://brc-analytics.org/api/v1/mcp/) and [Excalidraw](https://mcp.excalidraw.com/mcp). Their sessions are opened at startup and kept open, a server not answering then is skipped until the app restarts
+- `/info`: models available for `/chat` with their effort levels, and the MCP servers of the agent with their number of tools as read at startup (`null` for a server not answering then), listed from a button in the chat toolbar and used as healthcheck
 - `/`: chat UI from the [`light-chat` Python package](../packages/python/README.md)
 
 The BV-BRC MCP server of the codeathon repo is not included, it requires an authentication.

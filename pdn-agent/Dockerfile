@@ -35,5 +35,5 @@ EXPOSE 8000
 # Number of uvicorn worker processes. One: the NCBI, GEO and PubMed tools pace their requests to the NCBI limit
 # per IP (3/s, 10/s with NCBI_API_KEY) within a process, each worker would add its own share
 ENV WEB_CONCURRENCY=1
-HEALTHCHECK CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/models')"
+HEALTHCHECK CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/info')"
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]

@@ -74,6 +74,9 @@ const chat = new Chat("chat", {
   theme: "auto", // "auto" (OS preference) | "light" | "dark"
   themeSwitch: false, // button in the sidebar to switch between system, light and dark, the user choice is remembered
   attachments: true, // show the + button to attach files
+  // MCP servers of the agent listed with their number of tools from a button in the toolbar, or the URL of a JSON
+  // object with a `mcpServers` list, e.g. "info" returning { mcpServers: [{ id: "string", url: "...", tools: 12 }] }
+  mcpServers: [{ id: "string", url: "https://mcp.string-db.org/", tools: 12 }],
   history: true, // conversation history sidebar, false to disable, or your own HistoryStore
   sidebarOpen: false, // open the sidebar on first visit, then the user choice is remembered
   urlParam: "session", // open conversation id kept in the URL (?session=ID) and opened on load, false to disable

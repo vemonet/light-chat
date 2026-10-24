@@ -1247,6 +1247,66 @@
   height: 14px;
 }
 
+/* MCP servers list: status dot, name and number of tools, URL under them */
+.lc-popover:has(.lc-servers) {
+  width: 300px;
+}
+
+.lc-servers ul {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lc-server {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  column-gap: 8px;
+}
+
+.lc-server-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: light-dark(#16a34a, #4ade80);
+}
+
+.lc-server.lc-off .lc-server-dot {
+  background: var(--lc-border-strong);
+}
+
+.lc-server-id {
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lc-server-tools {
+  color: var(--lc-muted);
+  font-size: 12px;
+}
+
+.lc-server.lc-off .lc-server-id,
+.lc-server.lc-off .lc-server-tools {
+  color: var(--lc-muted);
+}
+
+.lc-server-url {
+  grid-column: 2 / -1;
+  overflow: hidden;
+  color: var(--lc-muted);
+  font-family: var(--lc-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: all;
+}
+
 .lc-field {
   display: flex;
   flex-direction: column;
