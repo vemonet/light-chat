@@ -371,7 +371,6 @@ app.include_router(
             "Show the 3D structure of hemoglobin beta and where the sickle cell mutation is",
             "Which proteins interact with TP53, and in which pathways?",
             "Compare insulin across mammals and show the human sequence",
-            "Draw a diagram of the reaction catalyzed by hexokinase",
         ],
     )
 )

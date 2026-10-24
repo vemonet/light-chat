@@ -28,15 +28,6 @@
         flex-wrap: wrap;
         gap: 6px;
       }
-      .links a {
-        font-size: 12px;
-        padding: 1px 8px;
-        border: 1px solid var(--border);
-        border-radius: 12px;
-      }
-      .links a:hover {
-        background: var(--hover);
-      }
       .tabs {
         display: flex;
         flex-wrap: wrap;
@@ -284,6 +275,7 @@
     <div class="actions" id="actions"></div>
 
     <script src="colors.js"></script>
+    <script src="logos.js"></script>
     <script type="module">
       import {
         App,
@@ -432,7 +424,10 @@
         $("title").innerHTML =
           `${escapeHtml(v.gene ?? "Variant")} ${escapeHtml(shortP(v))} <span class="id">${escapeHtml(v.id)}${v.rsid ? ` · ${escapeHtml(v.rsid)}` : ""}</span>`;
         $("links").innerHTML = Object.entries(v.links)
-          .map(([name, url]) => `<a data-url="${escapeHtml(url)}">${escapeHtml(name)}</a>`)
+          .map(
+            ([name, url]) =>
+              `<a class="logo-link" data-url="${escapeHtml(url)}" title="${escapeHtml(name)}">${logoHtml(name)}</a>`,
+          )
           .join("");
         $("tabs").innerHTML =
           data.variants.length > 1

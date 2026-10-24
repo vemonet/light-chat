@@ -123,7 +123,7 @@
       <h1 id="title">Loading the STRING network</h1>
       <span class="muted" id="subtitle"></span>
       <span class="spacer"></span>
-      <a id="string-link">Open in STRING</a>
+      <a id="string-link" class="logo-link" title="Open in STRING"></a>
       <button type="button" id="fullscreen">Full screen</button>
     </header>
     <div class="toolbar">
@@ -144,6 +144,7 @@
     <div class="details muted" id="details">Hover or click a protein or an interaction for details</div>
 
     <script src="colors.js"></script>
+    <script src="logos.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.33.1/dist/cytoscape.min.js"></script>
     <script type="module">
       import {
@@ -522,6 +523,7 @@
         if (b?.dataset.url) void app.openLink({ url: b.dataset.url });
         if (b?.dataset.ask) void sendMessage(b.dataset.ask);
       });
+      $("string-link").innerHTML = logoHtml("STRING");
       $("string-link").onclick = () => data && app.openLink({ url: data.url });
       // Theme and display mode of the host as attributes on <html> for the CSS
       function onContext(ctx) {

@@ -80,3 +80,23 @@ button:disabled {
 .error {
   color: #cf222e;
 }
+/* Link to a resource showing its logo (logos.js), on white so dark logos stay readable in dark mode */
+.logo-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: center;
+  height: 26px;
+  padding: 0 10px;
+  font-size: 12px;
+  color: #1f2328;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.logo-link:hover {
+  background: #eef3fa;
+}
+.logo-link img {
+  height: 15px;
+}

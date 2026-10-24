@@ -246,7 +246,7 @@
       <h1 id="title">Loading workflows</h1>
       <span class="muted" id="subtitle"></span>
       <span class="spacer"></span>
-      <button type="button" id="site">BRC Analytics</button>
+      <button type="button" id="site" class="logo-link" title="Open in BRC Analytics"></button>
       <button type="button" id="fullscreen">Full screen</button>
     </header>
     <div class="toolbar">
@@ -264,6 +264,7 @@
     <div class="details muted" id="details">Click a cell, an assembly or a workflow for details</div>
 
     <script src="colors.js"></script>
+    <script src="logos.js"></script>
     <script type="module">
       import {
         App,
@@ -497,6 +498,7 @@
       $("filter").oninput = render;
       $("category").onchange = render;
       $("hide").onchange = render;
+      $("site").innerHTML = logoHtml("BRC Analytics");
       $("site").onclick = () =>
         data &&
         app.openLink({

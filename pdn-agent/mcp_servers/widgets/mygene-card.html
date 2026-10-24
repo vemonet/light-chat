@@ -25,18 +25,6 @@
         flex-wrap: wrap;
         gap: 6px;
       }
-      .links a {
-        font-size: 12px;
-        padding: 1px 8px;
-        border: 1px solid var(--border);
-        border-radius: 12px;
-      }
-      .links a:hover {
-        background: var(--hover);
-      }
-      .links a span {
-        color: var(--muted);
-      }
       .grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
@@ -240,6 +228,7 @@
     <div class="actions" id="actions"></div>
 
     <script src="colors.js"></script>
+    <script src="logos.js"></script>
     <script type="module">
       import {
         App,
@@ -448,7 +437,10 @@
         $("subtitle").innerHTML =
           `<span class="species">${escapeHtml(sp ?? "")}</span> · ${escapeHtml(data.type ?? "")}`;
         $("links").innerHTML = data.links
-          .map((l) => `<a data-url="${escapeHtml(l.url)}" title="${escapeHtml(l.id)}">${escapeHtml(l.name)}</a>`)
+          .map(
+            (l) =>
+              `<a class="logo-link" data-url="${escapeHtml(l.url)}" title="${escapeHtml(`${l.name} ${l.id}`)}">${logoHtml(l.name)}</a>`,
+          )
           .join("");
         $("card").innerHTML = summarySection() + locationSection() + goSection() + orthologsSection();
         draw();

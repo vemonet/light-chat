@@ -160,7 +160,7 @@
   <body>
     <header>
       <h1 id="title">Loading series</h1>
-      <button type="button" id="geo">GEO page</button>
+      <button type="button" id="geo" class="logo-link" title="Open in GEO"></button>
       <button type="button" id="fullscreen">Full screen</button>
     </header>
     <div class="meta" id="meta"></div>
@@ -203,6 +203,7 @@
     </div>
 
     <script src="colors.js"></script>
+    <script src="logos.js"></script>
     <script type="module">
       import {
         App,
@@ -424,6 +425,7 @@
       $("prompt").onkeydown = (e) => {
         if (e.key === "Enter" && !$("send").disabled) $("send").click();
       };
+      $("geo").innerHTML = logoHtml("GEO");
       $("geo").onclick = () => data && app.openLink({ url: data.url });
       // Theme and display mode of the host as attributes on <html> for the CSS
       function onContext(ctx) {
