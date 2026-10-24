@@ -1,6 +1,6 @@
-"""MyGene.info MCP Server
+"""MyGene.info MCP tools
 
-A remote MCP server exposing tools over MyGene.info, the BioThings gene
+MCP tools over MyGene.info, the BioThings gene
 annotation service: gene search, annotation retrieval, and batch identifier
 mapping across 93M genes from 53,000 species.
 """
@@ -11,22 +11,9 @@ import time
 from typing import Any
 
 import requests
-from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
-from .mygene_apps import apps
-
-mcp = MCPServer(
-    name="MyGene MCP",
-    dependencies=["mcp", "requests"],
-    instructions=(
-        "Query MyGene.info for gene annotation: symbols, names, genomic "
-        "position, Gene Ontology terms, pathways, orthologs, and cross-references "
-        "to Entrez, Ensembl, RefSeq, UniProt and HGNC"
-    ),
-    extensions=[apps],
-)
-
+from .server import mcp
 
 # MyGene.info  (BioThings gene annotation service)
 #

@@ -1,6 +1,6 @@
-"""MyVariant.info MCP Server
+"""MyVariant.info MCP tools
 
-A remote MCP server exposing tools over MyVariant.info, the BioThings variant
+MCP tools over MyVariant.info, the BioThings variant
 annotation service: variant search, annotation retrieval, and batch
 identifier mapping across 1.5 billion variants aggregated from ClinVar,
 dbSNP, gnomAD, CADD, CIViC, and 14 other sources.
@@ -13,22 +13,9 @@ import time
 from typing import Any
 
 import requests
-from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
-from .myvariant_apps import apps
-
-mcp = MCPServer(
-    name="MyVariant MCP",
-    dependencies=["mcp", "requests"],
-    instructions=(
-        "Query MyVariant.info for variant annotation: clinical significance, "
-        "population frequency, deleteriousness predictions, and functional "
-        "consequence, cross-referenced to ClinVar, dbSNP, gnomAD and CIViC"
-    ),
-    extensions=[apps],
-)
-
+from .server import mcp
 
 # MyVariant.info  (BioThings variant annotation service)
 #

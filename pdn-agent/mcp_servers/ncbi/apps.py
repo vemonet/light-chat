@@ -12,12 +12,11 @@ import difflib
 from collections import Counter
 from typing import Annotated, Any, TypedDict
 
-from mcp.server.apps import Apps
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import CallToolResult, ToolAnnotations
 from pydantic import Field
 
-from ..apps_common import WIDGET_CSP, text_result, widget_html
+from ..apps_common import WIDGET_CSP, apps, text_result, widget_html
 from . import pathogens
 from .envelope import NCBIError
 from .eutils import TransportError
@@ -34,8 +33,6 @@ ISOLATE_FIELDS = (
 )
 # Common names of organism groups that do not contain them
 ORGANISM_ALIASES = {"escherichia coli": "E.coli and Shigella", "e. coli": "E.coli and Shigella"}
-
-apps = Apps()
 
 
 # Data sent to the widgets in `structuredContent`, as read by `widgets/ncbi-*.html`

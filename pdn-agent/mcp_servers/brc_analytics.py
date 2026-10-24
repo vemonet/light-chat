@@ -1,6 +1,6 @@
-"""BRC Analytics MCP Server (complement)
+"""BRC Analytics MCP tools (complement)
 
-A local MCP server that fills the gaps in BRC Analytics' own public MCP server.
+Local MCP tools that fill the gaps in BRC Analytics' own public MCP server.
 
 BRC Analytics publishes an MCP server at https://brc-analytics.org/api/v1/mcp/ with
 12 read-only tools, and chatbot.py federates it directly. This file deliberately does
@@ -25,25 +25,9 @@ Read and execute stay in different servers. Nothing here can start a Galaxy job.
 """
 
 import requests
-from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
-from .brc_apps import apps
-
-mcp = MCPServer(
-    name="BRC Analytics MCP",
-    dependencies=["mcp", "requests"],
-    instructions=(
-        "Sequencing-data tools for BRC Analytics, complementing the public BRC "
-        "Analytics MCP server rather than duplicating it. Use the federated BRC "
-        "tools (search_organisms, get_assemblies, check_compatibility, ...) for the "
-        "genome catalog and workflow compatibility. Use these tools for raw "
-        "sequencing runs in ENA: real totals, paging past 50 results, keyword "
-        "search, and study lookup. show_brc_workflow_matrix shows the user which "
-        "workflows can run on which assemblies of an organism."
-    ),
-    extensions=[apps],
-)
+from .server import mcp
 
 BRC_API = "https://brc-analytics.org/api/v1"
 ENA_API = "https://www.ebi.ac.uk/ena/portal/api"

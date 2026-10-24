@@ -1,9 +1,9 @@
-"""MCP server exposing the NIAID Data Ecosystem Discovery Portal API.
+"""MCP tools exposing the NIAID Data Ecosystem Discovery Portal API.
 
 The NDE portal (https://data.niaid.nih.gov) federates metadata for ~14M records
 -- datasets, biological samples, computational tools, and resource catalogs --
 harvested from NCBI GEO/SRA/BioProject, Zenodo, Figshare, PDB, bio.tools, dbGaP,
-ImmPort, and dozens of other repositories. This server puts that search surface
+ImmPort, and dozens of other repositories. This module puts that search surface
 in front of an agent as a handful of task-shaped tools.
 """
 
@@ -15,10 +15,9 @@ import urllib.parse
 from collections.abc import Sequence
 from typing import Any
 
-from mcp.server.mcpserver import MCPServer
 from mcp_types import ToolAnnotations
 
-from .apps import apps
+from ..server import mcp
 from .client import NDEError, get_client
 from .format import (
     clean_detail,
@@ -40,27 +39,6 @@ from .query import (
     join_clauses,
     normalize_sort,
     vocabulary_hint,
-)
-
-mcp = MCPServer(
-    "nde",
-    extensions=[apps],
-    instructions=(
-        "Search the NIAID Data Ecosystem Discovery Portal: ~14M federated metadata "
-        "records for biomedical datasets, samples, computational tools, and resource "
-        "catalogs from NCBI, Zenodo, Figshare, PDB, bio.tools, dbGaP, ImmPort and more.\n\n"
-        "Typical flow:\n"
-        "  1. nde_search_datasets for keyword + filter search over datasets.\n"
-        "  2. nde_semantic_search when the user's phrasing is conversational and "
-        "keyword matching is likely to miss.\n"
-        "  3. nde_search_tools for software and analysis workflows.\n"
-        "  4. nde_facet_counts to discover which filter values exist before filtering, "
-        "or to summarize the landscape of a topic.\n"
-        "  5. nde_get_record to pull the full metadata for a promising hit.\n\n"
-        "Every result carries its source repository and both a source URL and a portal "
-        "URL, so findings stay traceable. Use nde_list_repositories to see which "
-        "repositories are federated and how many records each contributes."
-    ),
 )
 
 # Every tool here is a read against a public API: no writes, no side effects,

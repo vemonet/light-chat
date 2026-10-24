@@ -1,4 +1,4 @@
-"""FastAPI app exposing the MCP servers of the federated data ecosystem, an AG-UI agent using them, and a chat UI."""
+"""FastAPI app exposing the MCP server of the federated data ecosystem, an AG-UI agent using it, and a chat UI."""
 
 import asyncio
 import json
@@ -6,10 +6,10 @@ import logging
 import os
 import time
 from collections.abc import AsyncIterator, Sequence
-from contextlib import AsyncExitStack, asynccontextmanager
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from ag_ui.core import (
     BaseEvent,
@@ -32,14 +32,14 @@ from pydantic_ai.toolsets import AbstractToolset, ToolsetTool
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 from pydantic_settings import BaseSettings, NoDecode
 
-from mcp_servers import MCP_SERVERS
+from mcp_servers import mcp
 from mcp_servers.provenance import provenance_server, split_provenance
 from prompt import SYSTEM_PROMPT
 
 setup_logging()
 # No first-run banner of Pydantic AI
 os.environ["PYDANTIC_AI_NO_BANNER"] = "1"
-# Without a line per MCP server session manager started, the servers are listed once at startup
+# Without a line when the MCP session manager starts, the servers are listed once at startup
 logging.getLogger("mcp.server.streamable_http_manager").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
@@ -51,13 +51,17 @@ CommaList = Annotated[
 ]
 
 
+# Reasoning effort levels accepted by `OpenAIChatModelSettings.openai_reasoning_effort`
+Effort = Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+
+
 class Model(BaseModel):
     """Tool calling model, with the reasoning effort levels it supports, lowest first"""
 
     name: str
-    effort: list[str] = []
+    effort: list[Effort] = []
     # Level used when the request has none, the middle one in the UI when unset
-    default_effort: str | None = Field(None, serialization_alias="defaultEffort")
+    default_effort: Effort | None = Field(None, serialization_alias="defaultEffort")
 
 
 def parse_models(value: Any) -> Any:
@@ -103,11 +107,10 @@ provider = OpenAIProvider(
 )
 # Public MCP servers, used as is
 REMOTE_MCP_SERVERS = {
-    "string-public": "https://mcp.string-db.org/",
+    "string": "https://mcp.string-db.org/",
     "expasy": "https://chat.expasy.org/mcp/",
-    # The trailing slash is required, without it the server redirects to plain http, which the MCP client refuses
-    "brc-analytics-public": "https://brc-analytics.org/api/v1/mcp/",
-    "excalidraw": "https://mcp.excalidraw.com/mcp",
+    "brc-analytics": "https://brc-analytics.org/api/v1/mcp/",
+    # "excalidraw": "https://mcp.excalidraw.com/mcp",
 }
 
 
@@ -121,19 +124,24 @@ class AppsToolset(UIToolset):
         return result if ui_meta(tool).get("resourceUri") else result.return_value
 
 
-# MCP servers of this app, called in-process
-local_toolsets = [AppsToolset(server, id=path) for path, server in MCP_SERVERS.items()]
+# MCP server of this app, called in-process
+local_toolset = AppsToolset(mcp, id=mcp.name)
 remote_toolsets = [AppsToolset(url, id=id) for id, url in REMOTE_MCP_SERVERS.items()]
 # Time of the last failed check of remote servers by ID: they are skipped instead of failing every run, and checked
 # again after a while
 failed_checks: dict[str, float] = {}
 RETRY_SECONDS = 300
 # Toolsets answering the MCP requests of widgets, with the server of the provenance graph
-ui_toolsets = [*local_toolsets, *remote_toolsets, UIToolset(provenance_server, id="provenance")]
-# MCP server ID of each tool, for the provenance graph (those of remote servers are read when checked)
-tool_servers: dict[str, str] = {}
+ui_toolsets = [local_toolset, *remote_toolsets, UIToolset(provenance_server, id="provenance")]
+# MCP server ID of each tool, for the provenance graph (those of remote servers are read when checked). Local tools get
+# the resource of their module instead, e.g. `ncbi` for `mcp_servers.ncbi.apps` (the SDK has no public access to the
+# functions of the tools)
+tool_servers = {
+    t.name: t.fn.__module__.split(".")[1].removesuffix("_apps").replace("_", "-")
+    for t in mcp._tool_manager.list_tools()
+}
 # Instructions of the MCP servers by ID, added to the system prompt (those of remote servers are read at startup)
-server_instructions = {p: s.instructions for p, s in MCP_SERVERS.items() if s.instructions}
+server_instructions = {mcp.name: mcp.instructions} if mcp.instructions else {}
 
 
 def agent_toolsets(toolsets: Sequence[MCPToolset]) -> list[AbstractToolset[Any]]:
@@ -142,7 +150,7 @@ def agent_toolsets(toolsets: Sequence[MCPToolset]) -> list[AbstractToolset[Any]]
 
 
 # Failed tool calls are sent back to the model a few times, e.g. to fix an invalid query
-agent = Agent(toolsets=agent_toolsets(local_toolsets), deps_type=str, retries={"tools": 3})
+agent = Agent(toolsets=agent_toolsets([local_toolset]), deps_type=str, retries={"tools": 3})
 
 
 @agent.instructions
@@ -185,19 +193,12 @@ def log_servers(kind: str, tools: dict[str, int]) -> None:
     logger.info(f"{len(tools)} {kind} MCP servers, {sum(tools.values())} tools: {servers}")
 
 
-# The session managers of the MCP servers must run for the whole app lifetime
+# The session manager of the MCP server must run for the whole app lifetime
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     remote_tools = await asyncio.gather(*(check_remote(ts) for ts in remote_toolsets))
-    local_tools: dict[str, int] = {}
-    for path, server in MCP_SERVERS.items():
-        tools = await server.list_tools()
-        tool_servers.update({t.name: path for t in tools})
-        local_tools[path] = len(tools)
-    async with AsyncExitStack() as stack:
-        for server in MCP_SERVERS.values():
-            await stack.enter_async_context(server.session_manager.run())
-        log_servers("local", local_tools)
+    async with mcp.session_manager.run():
+        log_servers("local", {mcp.name: len(await mcp.list_tools())})
         log_servers("remote", {ts.id or ts.label: n for ts, n in zip(remote_toolsets, remote_tools) if n is not None})
         yield
 
@@ -271,9 +272,11 @@ async def chat(request: Request) -> Response:
         raise HTTPException(400, f"Unknown model {model}, available: {', '.join(m.name for m in settings.models)}")
     # Reasoning effort among the levels of the model, none sent when it has no levels
     effort = forwarded.get("effort") or config.default_effort
-    if effort and effort not in config.effort:
+    # The level of the model matching the request, typed as an effort level
+    level = next((e for e in config.effort if e == effort), None)
+    if effort and level is None:
         raise HTTPException(400, f"Unknown effort {effort} for {model}, available: {', '.join(config.effort)}")
-    model_settings = OpenAIChatModelSettings(openai_reasoning_effort=effort) if effort else None
+    model_settings = OpenAIChatModelSettings(openai_reasoning_effort=level) if level else None
     context = "\n\n".join(f"{c['description']}:\n{c['value']}" for c in body.get("context") or [])
     adapter = await AGUIAdapter[str, str].from_request(request, agent=agent)
     toolsets = agent_toolsets(await available_remote_toolsets())
@@ -329,9 +332,6 @@ transport_security = TransportSecuritySettings(
     allowed_origins=[f"http://{h}:*" for h in local_hosts]
     + [f"{scheme}://{h}" for h in settings.allowed_hosts for scheme in ("https", "http")],
 )
-# MCP servers of the app, each under its own path, e.g. `/pdn/mcp`
-for path, server in MCP_SERVERS.items():
-    app.mount(
-        f"/{path}",
-        server.streamable_http_app(stateless_http=True, json_response=True, transport_security=transport_security),
-    )
+# MCP server of the app at `/mcp`, its route added to the app instead of mounting it under a prefix
+mcp_app = mcp.streamable_http_app(stateless_http=True, json_response=True, transport_security=transport_security)
+app.router.routes.extend(mcp_app.routes)

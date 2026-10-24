@@ -9,7 +9,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from mcp.server.apps import ResourceCsp
+from mcp.server.apps import Apps, ResourceCsp
 from mcp_types import CallToolResult, TextContent
 
 WIDGETS = Path(__file__).parent / "widgets"
@@ -17,6 +17,9 @@ WIDGETS = Path(__file__).parent / "widgets"
 CDN = "https://cdn.jsdelivr.net"
 # CSP of the widgets, which load the MCP Apps SDK from the CDN
 WIDGET_CSP = ResourceCsp(resource_domains=[CDN])
+# MCP Apps extension of the server, with the widget tools and resources of every resource: `server.py` imports
+# the modules registering them before creating the server, which reads them once
+apps = Apps()
 
 
 def text_result(text: str, data: Mapping[str, Any]) -> CallToolResult:

@@ -1,6 +1,6 @@
-"""GEO MCP Server
+"""GEO MCP tools
 
-A remote MCP server exposing tools over NCBI's Gene Expression Omnibus:
+MCP tools over NCBI's Gene Expression Omnibus:
 expression studies, their samples and platforms, and the supplementary files
 that hold the actual numbers.
 
@@ -40,23 +40,9 @@ from typing import Any
 from urllib.parse import urlencode, urljoin
 
 import requests
-from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
-from .geo_apps import apps
-
-mcp = MCPServer(
-    name="GEO MCP",
-    dependencies=["mcp", "requests"],
-    instructions=(
-        "Query NCBI GEO for gene expression studies: find Series by organism and "
-        "treatment, read one study's metadata and samples, and locate the "
-        "supplementary files that hold the processed expression values. GEO is "
-        "the only source here with expression data. Resolve GEO accessions with "
-        "geo_resolve_accession rather than by searching for them."
-    ),
-    extensions=[apps],
-)
+from .server import mcp
 
 EUTILS_API = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 FTP_BASE_URL = "https://ftp.ncbi.nlm.nih.gov/geo/"

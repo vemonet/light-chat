@@ -1,19 +1,9 @@
-"""MCP servers of the agent, by the path they are served under, e.g. `/pdn/mcp`"""
+"""Pathogen Data Network MCP server of the agent, served under `/mcp`"""
 
-from mcp.server.mcpserver import MCPServer
+# Modules of the tools of each resource, registered on the server when imported
+from . import brc_analytics, geo, mygene, myvariant, pdn, pubmed  # noqa: F401
+from .ncbi import server as ncbi  # noqa: F401
+from .nde import server as nde  # noqa: F401
+from .server import mcp
 
-from . import brc_analytics, geo, mygene, myvariant, pdn, pubmed, string
-from .ncbi import server as ncbi
-from .nde import server as nde
-
-MCP_SERVERS: dict[str, MCPServer] = {
-    "pdn": pdn.mcp,
-    "mygene": mygene.mcp,
-    "myvariant": myvariant.mcp,
-    "ncbi": ncbi.server,
-    "pubmed": pubmed.mcp,
-    "nde": nde.mcp,
-    "geo": geo.mcp,
-    "brc-analytics": brc_analytics.mcp,
-    "string": string.mcp,
-}
+__all__ = ["mcp"]

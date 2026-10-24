@@ -7,11 +7,10 @@ import re
 from collections import Counter
 from typing import Any, TypedDict
 
-from mcp.server.apps import Apps
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import CallToolResult
 
-from .apps_common import WIDGET_CSP, text_result, widget_html
+from .apps_common import WIDGET_CSP, apps, text_result, widget_html
 
 FIELDS = [
     "symbol",
@@ -119,8 +118,6 @@ KARYOTYPES: dict[int, tuple[str, dict[str, tuple[int, int | None]]]] = {
 GO_ASPECTS = {"BP": "biological process", "MF": "molecular function", "CC": "cellular component"}
 GO_EXPERIMENTAL = {"EXP", "IDA", "IPI", "IMP", "IGI", "IEP", "HTP", "HDA", "HMP", "HGI", "HEP", "TAS"}
 
-apps = Apps()
-
 
 # Data sent to the widget in `structuredContent`, as read by `widgets/mygene-card.html`
 class Location(TypedDict):
@@ -189,7 +186,7 @@ class GeneCardData(TypedDict):
 
 
 def _get(path: str, params: dict[str, Any] | None = None) -> Any:
-    # Imported when called: `mygene.py` imports `apps` from this module to build its server
+    # Imported when called: `mygene.py` imports the server, which imports this module
     from .mygene import _get as get
 
     return get(path, params)

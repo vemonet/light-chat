@@ -1,6 +1,6 @@
-"""STRING MCP server showing protein interaction networks in an interactive widget (MCP Apps).
+"""STRING tool showing protein interaction networks in an interactive widget (MCP Apps).
 
-The remote STRING MCP server answers in text, this one calls the STRING REST API to show the network to the user:
+The remote STRING MCP server answers in text, this tool calls the STRING REST API to show the network to the user:
 the widget gets the full network in `structuredContent`, the model only gets a text summary.
 API docs: https://string-db.org/cgi/help?subpage=api
 """
@@ -9,12 +9,11 @@ from collections import Counter
 from typing import Any, TypedDict
 
 import requests
-from mcp.server.apps import Apps, ResourceCsp
-from mcp.server.mcpserver import MCPServer
+from mcp.server.apps import ResourceCsp
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import CallToolResult
 
-from .apps_common import CDN, text_result, widget_html
+from .apps_common import CDN, apps, text_result, widget_html
 
 STRING_API = "https://string-db.org/api/json"
 STRING_URL = "https://string-db.org"
@@ -31,8 +30,6 @@ CHANNELS = {
 }
 MAX_PROTEINS = 200
 MAX_PARTNERS = 100
-
-apps = Apps()
 
 
 # Data sent to the widget in `structuredContent`, as read by `widgets/string-network.html`
@@ -226,13 +223,4 @@ apps.add_html_resource(
     widget_html("string-network.html"),
     title="STRING protein network",
     csp=ResourceCsp(resource_domains=[CDN]),
-)
-
-mcp = MCPServer(
-    name="STRING network",
-    instructions=(
-        "Show STRING protein-protein interaction networks to the user in an interactive graph, for a list of "
-        "proteins or one protein and its top partners. Use the tools of the STRING server for text answers"
-    ),
-    extensions=[apps],
 )

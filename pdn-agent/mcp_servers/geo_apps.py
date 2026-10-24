@@ -6,17 +6,14 @@ The widget gets the full data in `structuredContent`, the model only gets a text
 from collections import Counter
 from typing import TypedDict
 
-from mcp.server.apps import Apps
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import CallToolResult
 
-from .apps_common import WIDGET_CSP, text_result, widget_html
+from .apps_common import WIDGET_CSP, apps, text_result, widget_html
 
 GEO_QUERY = "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi"
 # Sample metadata is fetched in one SOFT request, about 3 KB and 35 ms per sample: skipped for bigger series
 MAX_SOFT_SAMPLES = 400
-
-apps = Apps()
 
 
 # Data sent to the widget in `structuredContent`, as read by `widgets/geo-series.html`
@@ -138,7 +135,7 @@ def show_geo_series(accession: str) -> CallToolResult:
     characteristics (strain, treatment, time...), and the supplementary files holding the processed expression values
     with sizes and download links. The user can select samples and send them back to you.
     Use it when the user wants to see or explore a study, its samples or its files, after finding it with geo_search"""
-    from .geo import geo_series, parse_accession  # imported here: geo.py imports `apps` from this module
+    from .geo import geo_series, parse_accession  # imported here: geo.py imports the server, which imports this module
 
     prefix, number = parse_accession(accession)
     if prefix != "GSE":

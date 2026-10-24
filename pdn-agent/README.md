@@ -4,21 +4,21 @@
 
 FastAPI app federating biological data resources through MCP servers, for light-chat:
 
-- `/<server>/mcp`: MCP servers (streamable HTTP), in [`mcp_servers/`](mcp_servers), ported from the codeathon repo to MCP Python SDK 2:
+- `/mcp`: the Pathogen Data Network MCP server (streamable HTTP) of [`mcp_servers/server.py`](mcp_servers/server.py), with the tools of each resource in their own module of [`mcp_servers/`](mcp_servers), ported from the codeathon repo to MCP Python SDK 2:
 
-  | Path                 | Resource                                                                                                            | Tools                                                        |
-  | -------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-  | `/pdn/mcp`           | [Pathogen Data Network](https://pathoplexus.org) sequences and metadata through LAPIS                               | `lapis_*`, `show_lapis_*`                                    |
-  | `/mygene/mcp`        | [MyGene.info](https://mygene.info) gene annotation                                                                  | `mygene_*`, `show_gene_card`                                 |
-  | `/myvariant/mcp`     | [MyVariant.info](https://myvariant.info) variant annotation                                                         | `myvariant_*`, `show_variant_card`                           |
-  | `/ncbi/mcp`          | [NCBI E-utilities](https://www.ncbi.nlm.nih.gov/books/NBK25501/) and Pathogen Detection AMR isolates                | `ncbi_*`, `show_pathogen_isolates_table`, `show_amr_heatmap` |
-  | `/pubmed/mcp`        | [PubMed](https://pubmed.ncbi.nlm.nih.gov) literature, as context only                                               | `pubmed_*`                                                   |
-  | `/geo/mcp`           | [GEO](https://www.ncbi.nlm.nih.gov/geo/) gene expression studies and their processed files                          | `geo_*`, `show_geo_series`                                   |
-  | `/nde/mcp`           | [NIAID Data Ecosystem](https://data.niaid.nih.gov) datasets and tools                                               | `nde_*`, `search_datasets_table`                             |
-  | `/brc-analytics/mcp` | [BRC Analytics](https://brc-analytics.org) ENA sequencing runs and workflows, complementing their public MCP server | `brc_ena_*`, `show_brc_workflow_matrix`                      |
-  | `/string/mcp`        | [STRING](https://string-db.org) protein networks, complementing their public MCP server                             | `show_string_network`                                        |
+  | Source          | Resource                                                                                                            | Tools                                                        |
+  | --------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+  | `pdn`           | [Pathogen Data Network](https://pathoplexus.org) sequences and metadata through LAPIS                               | `lapis_*`, `show_lapis_*`                                    |
+  | `mygene`        | [MyGene.info](https://mygene.info) gene annotation                                                                  | `mygene_*`, `show_gene_card`                                 |
+  | `myvariant`     | [MyVariant.info](https://myvariant.info) variant annotation                                                         | `myvariant_*`, `show_variant_card`                           |
+  | `ncbi`          | [NCBI E-utilities](https://www.ncbi.nlm.nih.gov/books/NBK25501/) and Pathogen Detection AMR isolates                | `ncbi_*`, `show_pathogen_isolates_table`, `show_amr_heatmap` |
+  | `pubmed`        | [PubMed](https://pubmed.ncbi.nlm.nih.gov) literature, as context only                                               | `pubmed_*`                                                   |
+  | `geo`           | [GEO](https://www.ncbi.nlm.nih.gov/geo/) gene expression studies and their processed files                          | `geo_*`, `show_geo_series`                                   |
+  | `nde`           | [NIAID Data Ecosystem](https://data.niaid.nih.gov) datasets and tools                                               | `nde_*`, `search_datasets_table`                             |
+  | `brc-analytics` | [BRC Analytics](https://brc-analytics.org) ENA sequencing runs and workflows, complementing their public MCP server | `brc_ena_*`, `show_brc_workflow_matrix`                      |
+  | `string`        | [STRING](https://string-db.org) protein networks, complementing their public MCP server                             | `show_string_network`                                        |
 
-- `/chat`: AG-UI endpoint, a Pydantic AI agent using the MCP servers of the app, called in-process, and the public MCP servers of [STRING](https://mcp.string-db.org), [ExPASy](https://chat.expasy.org/mcp) (SPARQL over SIB resources, and the UniProt tools and widgets), [BRC Analytics](https://brc-analytics.org/api/v1/mcp/) and [Excalidraw](https://mcp.excalidraw.com/mcp). Public servers not answering are skipped, and checked again after 5 minutes
+- `/chat`: AG-UI endpoint, a Pydantic AI agent using the MCP server of the app, called in-process, and the public MCP servers of [STRING](https://mcp.string-db.org), [ExPASy](https://chat.expasy.org/mcp) (SPARQL over SIB resources, and the UniProt tools and widgets), [BRC Analytics](https://brc-analytics.org/api/v1/mcp/) and [Excalidraw](https://mcp.excalidraw.com/mcp). Public servers not answering are skipped, and checked again after 5 minutes
 - `/`: chat UI from the [`light-chat` Python package](../packages/python/README.md)
 
 The BV-BRC MCP server of the codeathon repo is not included, it requires an authentication.
@@ -40,7 +40,7 @@ OPENAI_BASE_URL=https://openrouter.ai/api/v1
 MODELS='[{"name": "deepseek/deepseek-v4.1-flash-1017", "effort": ["none", "low", "high", "max"], "default_effort": "high"}, "mistralai/mistral-large-4-0"]'
 # Optional, raises the NCBI rate limit from 3 to 10 requests per second
 NCBI_API_KEY=
-# Optional, public hostnames behind a reverse proxy, accepted by the MCP servers besides localhost
+# Optional, public hostnames behind a reverse proxy, accepted by the MCP server besides localhost
 # ALLOWED_HOSTS=pdn.example.org
 ```
 
@@ -79,13 +79,13 @@ docker build -f pdn-agent/Dockerfile -t pdn-agent .
 docker run -p 8084:8000 --env-file pdn-agent/.env pdn-agent
 ```
 
-The server listens on port 8000 in the container, and trusts `X-Forwarded-*` headers for a reverse proxy in front of it. Set `ALLOWED_HOSTS` to the public hostname, otherwise the MCP servers reject proxied requests with `Invalid Host header` (DNS rebinding protection of the MCP SDK).
+The server listens on port 8000 in the container, and trusts `X-Forwarded-*` headers for a reverse proxy in front of it. Set `ALLOWED_HOSTS` to the public hostname, otherwise the MCP server rejects proxied requests with `Invalid Host header` (DNS rebinding protection of the MCP SDK).
 
 ## How tool MCP UIs work
 
 Tool UIs are handled by light-chat, the server only forwards ([`light_chat.mcp_apps`](../packages/python/src/light_chat/mcp_apps.py), from the `mcp-apps` extra of the [Python package](../packages/python/README.md)): raw results of the tools with a UI are sent to the chat in an `mcp-apps` activity, and widgets read their resource and call tools through `/chat` with `forwardedProps.__proxiedMCPRequest`. Tools only visible to apps are hidden from the model. The AG-UI `context` sent by the chat (e.g. a diagram edited by the user) is added to the instructions.
 
-Widgets are in [`mcp_servers/widgets/`](mcp_servers/widgets), declared with their tools in the `*_apps.py` modules of each server (helpers in [`mcp_servers/apps_common.py`](mcp_servers/apps_common.py)). They get the full data in the tool `structuredContent`, while the model only gets a summary, and they do not call the APIs themselves, except to load libraries, maps and structures. Rows, cells or nodes selected by the user are sent back to the model as context, and buttons send a message about them.
+Widgets are in [`mcp_servers/widgets/`](mcp_servers/widgets), declared with their tools in the `*_apps.py` modules of each resource, on the MCP Apps extension of [`mcp_servers/apps_common.py`](mcp_servers/apps_common.py) with the helpers. They get the full data in the tool `structuredContent`, while the model only gets a summary, and they do not call the APIs themselves, except to load libraries, maps and structures. Rows, cells or nodes selected by the user are sent back to the model as context, and buttons send a message about them.
 
 PDN / LAPIS ([`mcp_servers/pdn_apps.py`](mcp_servers/pdn_apps.py)):
 
@@ -99,12 +99,12 @@ NCBI Pathogen Detection ([`mcp_servers/ncbi/apps.py`](mcp_servers/ncbi/apps.py))
 - `show_amr_heatmap`: AMR genes by organism group, as share or count of the isolates
 - `search_datasets_table`: NDE datasets faceted by repository, pathogen, species, year and technique
 
-GEO ([`mcp_servers/geo_apps.py`](mcp_servers/geo_apps.py)) and BRC Analytics ([`mcp_servers/brc_apps.py`](mcp_servers/brc_apps.py)):
+GEO ([`mcp_servers/geo_apps.py`](mcp_servers/geo_apps.py)) and BRC Analytics ([`mcp_servers/brc_analytics_apps.py`](mcp_servers/brc_analytics_apps.py)):
 
 - `show_geo_series`: metadata of a series, its samples with their characteristics, and the supplementary files to download
 - `show_brc_workflow_matrix`: assemblies of an organism against the BRC Analytics workflows they can run, from the public BRC Analytics MCP server
 
-STRING ([`mcp_servers/string.py`](mcp_servers/string.py)), MyGene ([`mcp_servers/mygene_apps.py`](mcp_servers/mygene_apps.py)) and MyVariant ([`mcp_servers/myvariant_apps.py`](mcp_servers/myvariant_apps.py)):
+STRING ([`mcp_servers/string_apps.py`](mcp_servers/string_apps.py)), MyGene ([`mcp_servers/mygene_apps.py`](mcp_servers/mygene_apps.py)) and MyVariant ([`mcp_servers/myvariant_apps.py`](mcp_servers/myvariant_apps.py)):
 
 - `show_string_network`: [Cytoscape.js](https://js.cytoscape.org) network of the proteins, edges colored by their main evidence channel, nodes by cluster
 - `show_gene_card`: summary, chromosome position and gene structure, GO terms and orthologs of a gene

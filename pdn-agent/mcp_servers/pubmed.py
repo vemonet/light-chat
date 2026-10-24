@@ -1,6 +1,6 @@
-"""PubMed MCP Server
+"""PubMed MCP tools
 
-A remote MCP server exposing tools over PubMed, via NCBI's E-utilities:
+MCP tools over PubMed, via NCBI's E-utilities:
 literature search, article detail, batch summaries, and related-article
 lookups (similar, citing, references, reviews) across 41M biomedical
 citations.
@@ -16,8 +16,9 @@ from typing import Any, Literal
 
 import requests
 from dotenv import load_dotenv
-from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
+
+from .server import mcp
 
 # Unlike chatbot.py, this server is launched standalone (uv run
 # mcp_servers/pubmed.py), which does not read a .env file on its own --
@@ -25,16 +26,6 @@ from mcp.server.mcpserver.exceptions import ToolError
 # uv run's. This makes NCBI_API_KEY and NCBI_EMAIL work the same way here
 # regardless of how the server is started.
 load_dotenv()
-
-mcp = MCPServer(
-    name="PubMed MCP",
-    dependencies=["mcp", "requests"],
-    instructions=(
-        "Search PubMed literature and fetch article detail, batch summaries, "
-        "and related-article links (similar, citing, references, reviews) "
-        "through NCBI's E-utilities"
-    ),
-)
 
 
 # PubMed  (NCBI E-utilities: esearch, esummary, efetch, elink, einfo)
@@ -446,7 +437,7 @@ def pubmed_describe_search(field_search: str = "") -> dict:
                 f"Requests are throttled to stay under NCBI's rate limit "
                 f"({'10' if API_KEY else '3'} requests/second, since "
                 f"{'an' if API_KEY else 'no'} NCBI_API_KEY is set), shared "
-                "across every tool in this server."
+                "across the PubMed tools."
             ),
         ],
     }

@@ -11,11 +11,10 @@ from collections import Counter
 from typing import Any, Literal, TypedDict
 
 from mcp import Client
-from mcp.server.apps import Apps
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import CallToolResult
 
-from .apps_common import WIDGET_CSP, text_result, widget_html
+from .apps_common import WIDGET_CSP, apps, text_result, widget_html
 
 # The trailing slash is required, without it the server redirects to plain http
 BRC_MCP = "https://brc-analytics.org/api/v1/mcp/"
@@ -33,8 +32,6 @@ INPUTS = {
     "SANGER_READ_RUN_PAIRED": "Paired-end reads",
     "SANGER_READ_RUN_SINGLE": "Single-end reads",
 }
-
-apps = Apps()
 
 
 # Data sent to the widget in `structuredContent`, as read by `widgets/brc-matrix.html`

@@ -8,11 +8,11 @@ import difflib
 import math
 from typing import Any, Literal, TypedDict
 
-from mcp.server.apps import Apps, ResourceCsp
+from mcp.server.apps import ResourceCsp
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import CallToolResult
 
-from .apps_common import CDN, WIDGET_CSP, text_result, widget_html
+from .apps_common import CDN, WIDGET_CSP, apps, text_result, widget_html
 from .lapis import (
     LAPIS_MAX_FILTER_DOWNLOAD_BYTES,
     LAPIS_MUTATION_FIELDS,
@@ -38,8 +38,6 @@ LINEAGE_FIELDS = ["pangoLineage", "lineage", "outbreakLineage", "clade"]
 GENOME_ORDER = {
     "sars-cov-2": ["ORF1a", "ORF1b", "S", "ORF3a", "E", "M", "ORF6", "ORF7a", "ORF7b", "ORF8", "N", "ORF9b"],
 }
-
-apps = Apps()
 
 
 # Data sent to the widgets in `structuredContent`, as read by `widgets/pdn-*.html`

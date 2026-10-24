@@ -1,6 +1,6 @@
-"""Pathogen Data Network (PDN) MCP Server
+"""Pathogen Data Network (PDN) MCP tools
 
-A remote MCP server exposing tools over Pathogen Data Network resources:
+MCP tools over Pathogen Data Network resources:
     - LAPIS - pathogen sequences and metadata from Pathoplexus,
       GenSpectrum Loculus, and CoV-Spectrum open
 and tools showing interactive widgets (MCP Apps) from `pdn_apps.py`.
@@ -10,7 +10,6 @@ The LAPIS helpers shared by both are in `lapis.py`.
 import difflib
 from typing import Any, Literal
 
-from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
 from .lapis import (
@@ -29,15 +28,7 @@ from .lapis import (
     _lapis_unknown_field,
     _lapis_version_filter,
 )
-from .pdn_apps import apps
-
-mcp = MCPServer(
-    name="PDN MCP",
-    dependencies=["mcp", "requests"],
-    instructions=("Query Pathogen Data Network (PDN) databases of pathogen sequences through LAPIS"),
-    extensions=[apps],
-)
-
+from .server import mcp
 
 # ********** list organisms **********
 

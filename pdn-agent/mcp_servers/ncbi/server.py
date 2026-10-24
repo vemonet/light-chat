@@ -29,59 +29,15 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import Field
 
+from ..server import mcp
 from . import coverage, databases, parsing, pathogens
-from .apps import apps
 from .databases import DATABASES, RUNINFO_OPEN_ACCESS_EMPTY
 from .envelope import NCBIError, envelope, provenance
 from .eutils import MAX_ESUMMARY_UIDS, Timer, TransportError
 from .shared import client, pathogen_client, pathogen_filter  # one client per service, sharing one rate limiter
-
-server = MCPServer(
-    name="NCBI MCP",
-    dependencies=["mcp", "httpx2"],
-    extensions=[apps],
-    instructions=(
-        "Two NCBI services.\n\n"
-        "E-utilities: sequencing runs (SRA), samples (BioSample), projects "
-        "(BioProject), organisms (Taxonomy), genes, genome assemblies, and "
-        "sequences.\n\n"
-        "Pathogen Detection (`ncbi_pathogen_*`): a curated, deduplicated index "
-        "of bacterial isolates with computed antimicrobial-resistance "
-        "genotypes. **Prefer it for any question about resistance genes or "
-        "resistant strains.** It answers those from curated AMR calls, whereas "
-        "the E-utilities databases can only match free-text sample "
-        "descriptions --- searching BioSample for 'MRSA' finds the isolates "
-        "whose submitter happened to use that word, which undercounts "
-        "severalfold. Use ncbi_pathogen_organisms and ncbi_pathogen_amr_genes "
-        "to get exact filter values first: values are matched literally, and "
-        "an unrecognized one returns 0 rather than an error, so a typo is "
-        "indistinguishable from a real negative.\n\n"
-        "Every result carries a `provenance` block. Read it before answering, "
-        "and cite it:\n"
-        "- `sources` --- which databases produced the data, and each one's "
-        "share of the result.\n"
-        "- `request_cost` --- how many NCBI requests this answer spent.\n"
-        "- `coverage` --- the result count against a denominator, with `basis` "
-        "naming what the denominator counts. Report the percentage and the "
-        "basis together; a count without its denominator reads as a "
-        "population. A `shortfall` means NCBI silently dropped records you "
-        "asked for.\n"
-        "- `query_translation` --- the query NCBI actually ran, which is often "
-        "not the one that was sent. Report it when it differs from the "
-        "request. Absent on Pathogen Detection record fetches, which cannot "
-        "return it and rows together.\n"
-        "- `notes` --- caveats that change how a number should be read. The "
-        "Pathogen Detection tools use these to flag that raw row counts are "
-        "about twice the isolate count.\n\n"
-        "Results may be truncated. When `truncated` is true, `next` holds the "
-        "parameters for the following page; do not describe a truncated "
-        "result as complete."
-    ),
-)
 
 # Caps chosen from measured payload sizes, not guessed. Exceeding them produces
 # a ToolError naming the smaller alternative rather than a 30 MB tool result.
@@ -367,7 +323,7 @@ async def ncbi_list_databases() -> dict[str, Any]:
     return await _run(body, "ncbi_list_databases")
 
 
-@server.tool()
+@mcp.tool()
 async def ncbi_describe_database(
     db: Annotated[
         str,
@@ -435,7 +391,7 @@ async def ncbi_describe_database(
 # --------------------------------------------------------------------------
 
 
-@server.tool()
+@mcp.tool()
 async def ncbi_sra_search(
     organism: Annotated[
         str | None,
@@ -538,7 +494,7 @@ async def ncbi_sra_search(
     return await _run(body, "ncbi_sra_search")
 
 
-@server.tool()
+@mcp.tool()
 async def ncbi_sra_runs_for_project(
     accession: Annotated[
         str,
@@ -642,7 +598,7 @@ async def ncbi_sra_runs_for_project(
     return await _run(body, "ncbi_sra_runs_for_project")
 
 
-@server.tool()
+@mcp.tool()
 async def ncbi_sra_run_metadata(
     accessions: Annotated[
         str | list[str],
@@ -834,7 +790,7 @@ async def ncbi_pubmed_abstracts(
 # --------------------------------------------------------------------------
 
 
-@server.tool()
+@mcp.tool()
 async def ncbi_biosample_metadata(
     ids: Annotated[
         str | list[str],
@@ -873,7 +829,7 @@ async def ncbi_biosample_metadata(
     return await _run(body, "ncbi_biosample_metadata")
 
 
-@server.tool()
+@mcp.tool()
 async def ncbi_bioproject_summary(
     ids: Annotated[
         str | list[str],
@@ -913,7 +869,7 @@ async def ncbi_bioproject_summary(
     return await _run(body, "ncbi_bioproject_summary")
 
 
-@server.tool()
+@mcp.tool()
 async def ncbi_taxonomy_lookup(
     query: Annotated[
         str,
@@ -974,7 +930,7 @@ async def ncbi_taxonomy_lookup(
     return await _run(body, "ncbi_taxonomy_lookup")
 
 
-@server.tool()
+@mcp.tool()
 async def ncbi_gene_info(
     ids: Annotated[
         str | list[str],
@@ -1007,7 +963,7 @@ async def ncbi_gene_info(
     return await _run(body, "ncbi_gene_info")
 
 
-@server.tool()
+@mcp.tool()
 async def ncbi_assembly_info(
     ids: Annotated[
         str | list[str],
@@ -1046,7 +1002,7 @@ async def ncbi_assembly_info(
     return await _run(body, "ncbi_assembly_info")
 
 
-@server.tool()
+@mcp.tool()
 async def ncbi_sequence_fetch(
     ids: Annotated[
         str | list[str],
@@ -1111,7 +1067,7 @@ async def ncbi_sequence_fetch(
 # --------------------------------------------------------------------------
 
 
-@server.tool()
+@mcp.tool()
 async def ncbi_find_uids(
     db: Annotated[
         str,
@@ -1164,7 +1120,7 @@ async def ncbi_find_uids(
     return await _run(body, "ncbi_find_uids")
 
 
-@server.tool()
+@mcp.tool()
 async def ncbi_linked_records(
     from_db: Annotated[str, Field(description="Source Entrez database, e.g. 'bioproject'.")],
     to_dbs: Annotated[
@@ -1217,7 +1173,7 @@ async def ncbi_linked_records(
     return await _run(body, "ncbi_linked_records")
 
 
-@server.tool()
+@mcp.tool()
 async def ncbi_entrez_raw(
     utility: Annotated[
         str,
@@ -1276,7 +1232,7 @@ async def ncbi_entrez_raw(
 # --------------------------------------------------------------------------
 
 
-@server.tool()
+@mcp.tool()
 async def ncbi_pathogen_isolate_count(
     organism: Annotated[
         str | None,
@@ -1371,7 +1327,7 @@ async def ncbi_pathogen_isolate_count(
     return await _run(body, "ncbi_pathogen_isolate_count")
 
 
-@server.tool()
+@mcp.tool()
 async def ncbi_pathogen_isolates(
     organism: Annotated[
         str | None,
@@ -1455,7 +1411,7 @@ async def ncbi_pathogen_isolates(
     return await _run(body, "ncbi_pathogen_isolates")
 
 
-@server.tool()
+@mcp.tool()
 async def ncbi_pathogen_amr_genes(
     organism: Annotated[
         str | None,
@@ -1526,7 +1482,7 @@ async def ncbi_pathogen_amr_genes(
     return await _run(body, "ncbi_pathogen_amr_genes")
 
 
-@server.tool()
+@mcp.tool()
 async def ncbi_pathogen_organisms(
     contains: Annotated[str | None, Field(description="Case-insensitive substring filter, e.g. 'coli'.")] = None,
     limit: Annotated[int, Field(description="Maximum organism groups to return.", ge=1, le=500)] = 50,

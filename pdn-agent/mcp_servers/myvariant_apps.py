@@ -7,11 +7,10 @@ import re
 from collections import Counter
 from typing import Any, TypedDict
 
-from mcp.server.apps import Apps
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import CallToolResult
 
-from .apps_common import WIDGET_CSP, text_result, widget_html
+from .apps_common import WIDGET_CSP, apps, text_result, widget_html
 
 # Fields of the card, a full document can be hundreds of KB
 FIELDS = [
@@ -58,8 +57,6 @@ STARS = {
 }
 MAX_ALLELES = 6
 HGVS_G = re.compile(r"^(chr\w+):g\.(\d+)(?:_(\d+))?([a-z]+)$")
-
-apps = Apps()
 
 
 # Data sent to the widget in `structuredContent`, as read by `widgets/myvariant-card.html`
@@ -144,7 +141,7 @@ class VariantCardData(TypedDict):
 
 
 def _get(path: str, params: dict[str, Any] | None = None) -> Any:
-    # Imported when called: `myvariant.py` imports `apps` from this module to build its server
+    # Imported when called: `myvariant.py` imports the server, which imports this module
     from .myvariant import _get as get
 
     return get(path, params)
