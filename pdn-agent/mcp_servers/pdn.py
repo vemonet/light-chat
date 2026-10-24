@@ -13,6 +13,8 @@ from typing import Any, Literal
 from mcp.server.mcpserver.exceptions import ToolError
 
 from .lapis import (
+    EMPTY_DICT,
+    EMPTY_LIST,
     LAPIS_DATABASES,
     LAPIS_MAX_FILTER_DOWNLOAD_BYTES,
     LAPIS_MUTATION_FIELDS,
@@ -176,8 +178,8 @@ LAPIS_MAX_GROUPS = 500
 @mcp.tool()
 def lapis_aggregate_samples(
     organism: str,
-    group_by: list[str] | None = None,
-    filters: dict[str, Any] | None = None,
+    group_by: list[str] = EMPTY_LIST,
+    filters: dict[str, Any] = EMPTY_DICT,
     latest_version_only: bool = True,
     order_by: Literal["count", "group"] = "count",
     max_groups: int = 50,
@@ -235,6 +237,8 @@ def lapis_aggregate_samples(
             "sequences."
         )
     ]
+    if database.get("caveat"):
+        notes.append(database["caveat"])
     if version_note:
         notes.append(version_note)
     return {
@@ -264,7 +268,7 @@ def lapis_get_mutations(
     organism: str,
     sequence_type: Literal["nucleotide", "amino_acid"],
     gene_or_segment: str = "",
-    filters: dict[str, Any] | None = None,
+    filters: dict[str, Any] = EMPTY_DICT,
     min_proportion: float = 0.05,
     latest_version_only: bool = True,
     order_by: Literal["proportion", "position"] = "proportion",
@@ -373,6 +377,8 @@ def lapis_get_mutations(
             "assembly artifact. Check the count before you treat it as real."
         ),
     ]
+    if database.get("caveat"):
+        notes.append(database["caveat"])
     if version_note:
         notes.append(version_note)
     return {
@@ -403,7 +409,7 @@ LAPIS_MAX_RECORDS = 100
 def lapis_get_sample_details(
     organism: str,
     fields: list[str],
-    filters: dict[str, Any] | None = None,
+    filters: dict[str, Any] = EMPTY_DICT,
     latest_version_only: bool = True,
     order_by: str = "",
     descending: bool = False,
@@ -462,6 +468,8 @@ def lapis_get_sample_details(
     next_offset = offset + len(rows)
 
     notes = []
+    if database.get("caveat"):
+        notes.append(database["caveat"])
     if version_note:
         notes.append(version_note)
     result = {
@@ -505,7 +513,7 @@ def lapis_get_sequences(
     organism: str,
     alignment: Literal["unaligned_nucleotide", "aligned_nucleotide", "aligned_amino_acid"] = "unaligned_nucleotide",
     gene_or_segment: str = "",
-    filters: dict[str, Any] | None = None,
+    filters: dict[str, Any] = EMPTY_DICT,
     latest_version_only: bool = True,
     limit: int = 5,
 ) -> dict:
@@ -647,7 +655,7 @@ def lapis_get_insertions(
     organism: str,
     sequence_type: Literal["nucleotide", "amino_acid"],
     gene_or_segment: str = "",
-    filters: dict[str, Any] | None = None,
+    filters: dict[str, Any] = EMPTY_DICT,
     latest_version_only: bool = True,
     min_count: int = 1,
     order_by: Literal["count", "position"] = "count",
@@ -749,6 +757,8 @@ def lapis_get_insertions(
         ),
         "An insertion that one or two sequences carry can be an assembly artifact.",
     ]
+    if database.get("caveat"):
+        notes.append(database["caveat"])
     if version_note:
         notes.append(version_note)
     return {
@@ -781,7 +791,7 @@ def lapis_get_mutations_over_time(
     date_from: str,
     date_to: str,
     interval: Literal["month", "quarter", "year"] = "month",
-    filters: dict[str, Any] | None = None,
+    filters: dict[str, Any] = EMPTY_DICT,
     latest_version_only: bool = True,
     date_field: str = "",
 ) -> dict:
@@ -790,7 +800,9 @@ def lapis_get_mutations_over_time(
     For each mutation and each period, the reply gives the sequences that carry
     it, the sequences that cover its position, and the proportion between them.
     A rising proportion is the signal to look for. lapis_get_mutations finds
-    which mutations to name.
+    which mutations to name: call it with the same filters on the first and
+    the last part of the span, and keep those whose proportion changes most.
+    A mutation near 100% in both, e.g. S:D614G, shows no change.
 
     Args:
         organism: An organism name from lapis_list_organisms, e.g. "sars-cov-2".
@@ -867,6 +879,8 @@ def lapis_get_mutations_over_time(
         ),
         "A period with a small coverage moves a proportion a long way. Read the coverage beside every proportion.",
     ]
+    if database.get("caveat"):
+        notes.append(database["caveat"])
     if version_note:
         notes.append(version_note)
     return {

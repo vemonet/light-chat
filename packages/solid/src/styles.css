@@ -1517,6 +1517,9 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
+  /* As wide as the name, for its tooltip to be centered on it */
+  align-self: flex-start;
+  max-width: 100%;
   color: var(--lc-muted);
   font-size: 13px;
 }

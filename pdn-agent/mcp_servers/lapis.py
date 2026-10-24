@@ -8,6 +8,7 @@ from typing import Any
 
 import requests
 from mcp.server.mcpserver.exceptions import ToolError
+from pydantic import Field
 
 # LAPIS  (Pathoplexus, GenSpectrum Loculus, CoV-Spectrum open)
 #
@@ -76,6 +77,11 @@ LAPIS_DATABASES: dict[str, dict[str, Any]] = {
     "cov-spectrum": {
         "name": "CoV-Spectrum open",
         "description": "Open SARS-CoV-2 data from Nextstrain",
+        # Added to the notes of the tool results, so the counts are not read as all the sequencing of a country
+        "caveat": (
+            "CoV-Spectrum open holds the open sequences of INSDC (GenBank, ENA, DDBJ) curated by Nextstrain, not those "
+            "shared on GISAID only, often a small share of the sequencing of a country. Say so beside its counts."
+        ),
         # A single dataset, so the URL takes no organism name.
         "organism_url": "https://lapis.cov-spectrum.org/open/v2",
         "record_url": None,
@@ -308,6 +314,12 @@ LAPIS_MAX_FILTER_DOWNLOAD_BYTES = 5_000_000
 # ********** mutations over time **********
 
 LAPIS_MAX_PERIODS = 60
+
+# Defaults of the optional lists and filters of the tools, a new empty value at each call, instead of None: some
+# models (e.g. DeepSeek) drop the arguments of an `anyOf [..., null]` schema, so a call meant for one country ran
+# over all of them
+EMPTY_LIST = Field(default_factory=list)
+EMPTY_DICT = Field(default_factory=dict)
 
 # LAPIS counts over a date field, and the field must hold a date. Pathoplexus
 # stores sampleCollectionDate as text, so it keeps a date copy beside it.

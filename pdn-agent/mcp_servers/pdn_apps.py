@@ -13,6 +13,8 @@ from mcp_types import CallToolResult
 
 from .apps_common import apps, text_result, widget_html
 from .lapis import (
+    EMPTY_DICT,
+    EMPTY_LIST,
     LAPIS_MAX_FILTER_DOWNLOAD_BYTES,
     LAPIS_MUTATION_FIELDS,
     LapisResponseTooLarge,
@@ -29,6 +31,8 @@ from .lapis import (
 # z of a 95% Wilson score interval
 Z95 = 1.96
 MAX_SERIES = 8
+# Sequences below which a period is flagged as low n in the summaries, and left out of the peak
+MIN_COVERAGE = 30
 MAX_LOLLIPOPS = 1000
 # Fields tried first when the organism has several country or lineage fields
 COUNTRY_FIELDS = ["country", "geoLocCountry"]
@@ -161,6 +165,11 @@ def pct(p: float | None) -> str:
     return "-" if p is None else f"{p * 100:.1f}%"
 
 
+def caveat(database: dict) -> str:
+    """Caveat of the database on what its sequences cover on a line of its own, e.g. open data only, empty if none"""
+    return f"\n{database['caveat']}" if database.get("caveat") else ""
+
+
 def filters_text(filters: dict[str, Any]) -> str:
     return ", ".join(f"{k}={v}" for k, v in filters.items() if k not in ("versionStatus", "isRevocation")) or "none"
 
@@ -202,11 +211,11 @@ def show_lapis_mutations_over_time(
     organism: str,
     date_from: str,
     date_to: str,
-    mutations: list[str] | None = None,
-    lineages: list[str] | None = None,
+    mutations: list[str] = EMPTY_LIST,
+    lineages: list[str] = EMPTY_LIST,
     sequence_type: Literal["amino_acid", "nucleotide"] = "amino_acid",
     interval: Literal["month", "quarter", "year"] = "month",
-    filters: dict[str, Any] | None = None,
+    filters: dict[str, Any] = EMPTY_DICT,
     lineage_field: str = "",
     date_field: str = "",
     latest_version_only: bool = True,
@@ -214,6 +223,11 @@ def show_lapis_mutations_over_time(
     """Show the user a line chart of the frequency of mutations and/or lineages over time, in the sequences of an
     organism matching the filters, with a 95% confidence band from the number of sequences of each period. Use it to see
     whether a mutation or lineage grows or fades, e.g. "Is S:L455S growing in Switzerland in 2024?".
+
+    To pick the mutations that rose or fell over a span, call lapis_get_mutations with the same filters on the first
+    and on the last part of the span (e.g. the first and last quarter) and keep those whose proportion changes most.
+    Skip those near 100% (or near 0%) in both, e.g. S:D614G or S:N501Y, a flat line shows nothing. With few sequences
+    per month (the summary flags periods under 30), use interval "quarter".
 
     Args:
         organism: An organism name from lapis_list_organisms, e.g. "sars-cov-2" or "mpox".
@@ -268,7 +282,12 @@ def show_lapis_mutations_over_time(
             counts = counts_by_period(url, {**body, lineage_name: lineage}, field, periods)
             series.append(series_of(lineage, "lineage", counts, totals))
 
-    # Summary: first, last and peak proportion of each series
+    # Summary: first, last and peak proportion of each series, the peak among periods with enough sequences, since a
+    # proportion like 8/8 = 100% says little
+    def at(s: Series, i: int) -> str:
+        low = ", low n" if s["coverage"][i] < MIN_COVERAGE else ""
+        return f"{pct(s['proportion'][i])} in {periods[i]['start'][:7]} (n={s['coverage'][i]:,}{low})"
+
     lines = [
         (
             f"Shown to the user: frequency over time of {', '.join(s['name'] for s in series)} in {organism} "
@@ -281,10 +300,17 @@ def show_lapis_mutations_over_time(
         if not known:
             lines.append(f"- {s['name']}: no sequence covers it")
             continue
-        peak = max(known, key=lambda i: s["proportion"][i] or 0)
-        at = [f"{pct(s['proportion'][i])} in {periods[i]['start'][:7]} (n={s['coverage'][i]:,})" for i in known]
-        lines.append(f"- {s['name']}: {at[0]}, peak {at[known.index(peak)]}, last {at[-1]}")
+        solid = [i for i in known if s["coverage"][i] >= MIN_COVERAGE] or known
+        peak = max(solid, key=lambda i: s["proportion"][i] or 0)
+        lines.append(f"- {s['name']}: {at(s, known[0])}, peak {at(s, peak)}, last {at(s, known[-1])}")
+    sparse = [f"{p['start'][:7]} (n={p['total']:,})" for p in periods if p["total"] < MIN_COVERAGE]
+    if sparse:
+        lines.append(
+            f"Fewer than {MIN_COVERAGE} sequences in {', '.join(sparse)}: a proportion there is not a trend on its own, "
+            "do not report a rise, a fall or a fixation from these periods alone. A wider interval pools them."
+        )
     lines.append("Proportions of sequenced samples, not of infections. A small n gives a wide confidence band.")
+    lines[-1] += caveat(database)
     data = OverTimeData(
         organism=organism,
         database=database["name"],
@@ -304,7 +330,7 @@ def show_lapis_mutations_over_time(
 @apps.tool(resource_uri="ui://pdn/country-map.html")
 def show_lapis_country_map(
     organism: str,
-    filters: dict[str, Any] | None = None,
+    filters: dict[str, Any] = EMPTY_DICT,
     country_field: str = "",
     latest_version_only: bool = True,
 ) -> CallToolResult:
@@ -337,6 +363,7 @@ def show_lapis_country_map(
         f"{len(known)} countries, filters: {filters_text(body)}, {unknown:,} without a country.\n"
         f"Most sequenced: {top or 'none'}\n"
         "A count measures sequencing effort, not infections. The user can click a country to ask about it."
+        f"{caveat(database)}"
     )
     data = CountryData(
         organism=organism,
@@ -357,7 +384,7 @@ def show_lapis_country_map(
 def show_lapis_mutation_lollipop(
     organism: str,
     sequence_type: Literal["amino_acid", "nucleotide"] = "amino_acid",
-    filters: dict[str, Any] | None = None,
+    filters: dict[str, Any] = EMPTY_DICT,
     min_proportion: float = 0.05,
     gene_or_segment: str = "",
     max_mutations: int = 500,
@@ -451,6 +478,7 @@ def show_lapis_mutation_lollipop(
         f"proportion of at least {min_proportion} in {total:,} {organism} sequences ({database['name']}), "
         f"filters: {filters_text(body)}.\nBy {kind}, most frequent first: {per_region or 'none'}\n"
         "Proportions of sequenced samples. The user can click a mutation to ask about it."
+        f"{caveat(database)}"
     )
     data = LollipopData(
         organism=organism,
