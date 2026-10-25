@@ -240,4 +240,6 @@ All colors and sizes are CSS variables you can override, using `light-dark()` to
 }
 ```
 
-Available: `--lc-bg`, `--lc-fg`, `--lc-muted`, `--lc-surface`, `--lc-input-bg`, `--lc-border`, `--lc-border-strong`, `--lc-hover`, `--lc-accent`, `--lc-link`, `--lc-error`, `--lc-code-bg`, `--lc-tooltip-bg`, `--lc-tooltip-fg`, `--lc-font`, `--lc-mono`, `--lc-radius`, `--lc-max-width`.
+Available: `--lc-bg`, `--lc-fg`, `--lc-muted`, `--lc-surface`, `--lc-input-bg`, `--lc-border`, `--lc-border-strong`, `--lc-hover`, `--lc-accent`, `--lc-link`, `--lc-error`, `--lc-code-bg`, `--lc-tooltip-bg`, `--lc-tooltip-fg`, `--lc-widget-bg`, `--lc-widget-panel`, `--lc-font`, `--lc-mono`, `--lc-radius`, `--lc-max-width`.
+
+MCP Apps get the style variables of the [MCP Apps spec](https://modelcontextprotocol.io/extensions/apps) in their host context, as Claude and Codex send them, e.g. `--color-background-primary` (from `--lc-widget-bg`), `--color-text-primary`, `--color-border-primary`, `--font-sans`. They are defined on `.lc-root` from the `--lc-*` variables and can be overridden there too.

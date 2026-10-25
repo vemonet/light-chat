@@ -128,6 +128,51 @@ const allowOf = (permissions: Record<string, object> = {}) =>
     .map((p) => (p === "clipboardWrite" ? "clipboard-write" : p))
     .join("; ");
 
+/** MCP Apps style variables defined on `.lc-root` and sent to the apps */
+const STYLE_VARIABLES = [
+  "--color-background-primary",
+  "--color-background-secondary",
+  "--color-background-tertiary",
+  "--color-background-inverse",
+  "--color-background-ghost",
+  "--color-text-primary",
+  "--color-text-secondary",
+  "--color-text-tertiary",
+  "--color-text-inverse",
+  "--color-text-info",
+  "--color-text-danger",
+  "--color-border-primary",
+  "--color-border-secondary",
+  "--color-ring-primary",
+  "--font-sans",
+  "--font-mono",
+  "--border-radius-sm",
+  "--border-radius-md",
+  "--border-radius-lg",
+  "--border-radius-xl",
+];
+
+/**
+ * Style variables of the chat root, colors resolved for the current theme since `light-dark()` would follow
+ * the `color-scheme` of the app document, not the chat
+ */
+function styleVariables(root: Element | null | undefined) {
+  if (!root) return undefined;
+  const probe = root.appendChild(document.createElement("div"));
+  probe.style.display = "none";
+  const vars: Record<string, string> = {};
+  for (const name of STYLE_VARIABLES) {
+    if (name.startsWith("--color-")) {
+      probe.style.color = `var(${name})`;
+      vars[name] = getComputedStyle(probe).color;
+    } else {
+      vars[name] = getComputedStyle(root).getPropertyValue(name).trim();
+    }
+  }
+  probe.remove();
+  return vars;
+}
+
 const theme = (chat: ChatController) =>
   chat.state.theme !== "auto"
     ? chat.state.theme
@@ -175,6 +220,7 @@ export function Widget(props: { part: ActivityPart }) {
   const notify = (method: string, params: unknown) => post({ jsonrpc: "2.0", method, params });
   const hostContext = () => ({
     theme: theme(chat),
+    styles: { variables: styleVariables(frame?.closest(".lc-root")) },
     displayMode: fullscreen() ? "fullscreen" : "inline",
     availableDisplayModes: ["inline", "fullscreen"],
     ...(fullscreen() && frame && { containerDimensions: { width: frame.clientWidth, height: frame.clientHeight } }),
@@ -190,14 +236,13 @@ export function Widget(props: { part: ActivityPart }) {
     return mode === "fullscreen" ? "fullscreen" : "inline";
   };
 
-  // Tell the MCP App when the user switches theme
-  createEffect(
-    on(
-      () => chat.state.theme,
-      () => isApp() && notify("ui/notifications/host-context-changed", hostContext()),
-      { defer: true },
-    ),
-  );
+  // Tell the MCP App when the user switches theme, or the OS one changes while following it
+  const themeChanged = () => isApp() && notify("ui/notifications/host-context-changed", hostContext());
+  createEffect(on(() => chat.state.theme, themeChanged, { defer: true }));
+  const scheme = matchMedia("(prefers-color-scheme: dark)");
+  const onScheme = () => chat.state.theme === "auto" && themeChanged();
+  scheme.addEventListener("change", onScheme);
+  onCleanup(() => scheme.removeEventListener("change", onScheme));
 
   /** Text sent by a widget as a user message, ignored while a response streams */
   const sendText = (text: string) => void chat.send(text);

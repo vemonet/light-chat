@@ -18,10 +18,35 @@
   --lc-sidebar-border: light-dark(#ededed, #1c1c1c);
   --lc-tooltip-bg: light-dark(#1f1f1f, #383838);
   --lc-tooltip-fg: #f5f5f5;
+  /* Tool UIs: background a bit lighter than the user bubble, panels inside it */
+  --lc-widget-bg: light-dark(#f4f4f4, #2b2b2b);
+  --lc-widget-panel: light-dark(#ffffff, #212121);
   --lc-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --lc-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --lc-radius: 16px;
   --lc-max-width: 760px;
+
+  /* Style variables of the MCP Apps spec, as Claude and Codex name them, sent to MCP Apps in the host context */
+  --color-background-primary: var(--lc-widget-bg);
+  --color-background-secondary: var(--lc-widget-panel);
+  --color-background-tertiary: var(--lc-surface);
+  --color-background-inverse: var(--lc-accent);
+  --color-background-ghost: transparent;
+  --color-text-primary: var(--lc-fg);
+  --color-text-secondary: var(--lc-muted);
+  --color-text-tertiary: var(--lc-muted);
+  --color-text-inverse: var(--lc-bg);
+  --color-text-info: var(--lc-link);
+  --color-text-danger: var(--lc-error);
+  --color-border-primary: var(--lc-border);
+  --color-border-secondary: var(--lc-border-strong);
+  --color-ring-primary: var(--lc-link);
+  --font-sans: var(--lc-font);
+  --font-mono: var(--lc-mono);
+  --border-radius-sm: 6px;
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
+  --border-radius-xl: var(--lc-radius);
 
   color-scheme: light dark;
   box-sizing: border-box;
@@ -1540,6 +1565,7 @@
   position: relative;
   overflow: hidden;
   border-radius: 12px;
+  background: var(--color-background-primary);
 }
 
 .lc-widget-border {
@@ -1560,7 +1586,6 @@
   flex-direction: column;
   border: 0;
   border-radius: 0;
-  background: var(--lc-bg);
 }
 
 .lc-widget-fullscreen iframe {

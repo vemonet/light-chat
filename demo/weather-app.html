@@ -6,15 +6,13 @@
       body {
         margin: 0;
         padding: 16px 18px;
-        font:
-          14px/1.5 system-ui,
-          sans-serif;
-        color: #1f2328;
-        background: #f6f8fa;
+        font: 14px/1.5 var(--font-sans, system-ui, sans-serif);
+        color: var(--color-text-primary, #1f2328);
+        background: var(--color-background-primary, #f6f8fa);
       }
       body.dark {
-        color: #e6edf3;
-        background: #161b22;
+        color: var(--color-text-primary, #e6edf3);
+        background: var(--color-background-primary, #161b22);
       }
       .temp {
         font-size: 36px;
@@ -26,7 +24,7 @@
       button {
         margin: 10px 8px 0 0;
         padding: 6px 12px;
-        border: 1px solid #8c959f;
+        border: 1px solid var(--color-border-secondary, #8c959f);
         border-radius: 8px;
         background: transparent;
         color: inherit;
@@ -55,6 +53,13 @@
       const $ = (id) => document.getElementById(id);
       let city = "";
 
+      // Theme and style variables of the host context
+      const applyContext = (ctx = {}) => {
+        if (ctx.theme) document.body.classList.toggle("dark", ctx.theme === "dark");
+        for (const [name, value] of Object.entries(ctx.styles?.variables ?? {}))
+          if (value) document.documentElement.style.setProperty(name, value);
+      };
+
       const show = (result) => {
         const w = result.structuredContent;
         $("temp").textContent = `${w.temperature} C`;
@@ -71,8 +76,8 @@
           $("city").textContent = `Weather in ${city}`;
         } else if (m.method === "ui/notifications/tool-result") {
           show(m.params);
-        } else if (m.method === "ui/notifications/host-context-changed" && m.params.theme) {
-          document.body.classList.toggle("dark", m.params.theme === "dark");
+        } else if (m.method === "ui/notifications/host-context-changed") {
+          applyContext(m.params);
         }
       });
 
@@ -93,7 +98,7 @@
         appInfo: { name: "Weather", version: "1.0.0" },
         appCapabilities: {},
       }).then((r) => {
-        document.body.classList.toggle("dark", r.hostContext?.theme === "dark");
+        applyContext(r.hostContext);
         notify("ui/notifications/initialized", {});
       });
     </script>
