@@ -27,12 +27,12 @@ A lightweight, framework-agnostic chat UI for LLM agents, with a modern look ins
 
 The UI is written with [SolidJS](https://www.solidjs.com), which compiles to small and fast DOM code. `@vemonet/light-chat` bundles it, so you never deal with it unless you build a Solid app yourself. See the [`light-chat` documentation](packages/js/README.md) for all options: connectors, settings, history, attachments and theming.
 
-There is also a `light-chat` pip package that enables to easily deploy the light-chat UI on a FastAPI endpoint with support for MCP Apps.
+There is also a `light-chat-ui` pip package that enables to easily deploy the light-chat UI on a FastAPI endpoint with support for MCP Apps.
 
 ## Install
 
 ```bash
-npm i --save light-chat
+npm i --save @vemonet/light-chat
 ```
 
 ```js
@@ -63,7 +63,7 @@ function Assistant() {
 
 [`server/`](server/README.md) contains a minimal full-stack example: a FastAPI app serving a [Pydantic AI](https://ai.pydantic.dev) agent over AG-UI, using tools from an MCP server, with light-chat as its UI.
 
-The [`light-chat` Python package](packages/python/README.md) serves the chat UI from a FastAPI route, without frontend build.
+The [`light-chat-ui` Python package](packages/python/README.md) serves the chat UI from a FastAPI route, without frontend build.
 
 ## Development
 

@@ -4,8 +4,8 @@ import os
 from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Request, Response
-from light_chat import chat_router, setup_logging
-from light_chat.mcp_apps import PROXIED_REQUEST, UIToolset, proxied_response
+from light_chat_ui import chat_router, setup_logging
+from light_chat_ui.mcp_apps import PROXIED_REQUEST, UIToolset, proxied_response
 from pydantic import BeforeValidator, SecretStr
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.models.openai import OpenAIChatModel

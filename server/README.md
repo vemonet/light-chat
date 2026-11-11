@@ -5,7 +5,7 @@ Minimal FastAPI agent demo for light-chat:
 - `/chat`: AG-UI endpoint, a Pydantic AI agent using the tools of 2 remote MCP servers:
   - [ExPASy](https://chat.expasy.org/mcp) (from [sparql-llm](https://github.com/sib-swiss/sparql-llm)): UniProt tools, with interactive widgets (MCP Apps) showing protein features, 3D structures, variants, annotation matrices, interaction networks and search results tables, and SPARQL queries over UniProt, Rhea, Bgee and other SIB resources
   - [Excalidraw](https://mcp.excalidraw.com/mcp): diagrams drawn and edited in the chat (MCP App)
-- `/`: chat UI from the [`light-chat` Python package](../packages/python/README.md)
+- `/`: chat UI from the [`light-chat-ui` Python package](../packages/python/README.md)
 
 It is part of the uv workspace defined at the repo root, which installs the Python package from `../packages/python`. Build the JS bundle and copy it in the Python package first, from the repo root:
 
@@ -56,4 +56,4 @@ The server listens on port 8000 in the container, and trusts `X-Forwarded-*` hea
 
 ## How tool MCP UIs work
 
-Tool UIs are handled by light-chat, the server only forwards ([`light_chat.mcp_apps`](../packages/python/src/light_chat/mcp_apps.py), from the `mcp-apps` extra of the [Python package](../packages/python/README.md)): raw results of these MCP tools are sent to the chat in an `mcp-apps` activity, and widgets read their resource and call tools through `/chat` with `forwardedProps.__proxiedMCPRequest`. Tools only visible to apps are hidden from the model. The AG-UI `context` sent by the chat (e.g. a diagram edited by the user) is added to the instructions.
+Tool UIs are handled by light-chat, the server only forwards ([`light_chat_ui.mcp_apps`](../packages/python/src/light_chat_ui/mcp_apps.py), from the `mcp-apps` extra of the [Python package](../packages/python/README.md)): raw results of these MCP tools are sent to the chat in an `mcp-apps` activity, and widgets read their resource and call tools through `/chat` with `forwardedProps.__proxiedMCPRequest`. Tools only visible to apps are hidden from the model. The AG-UI `context` sent by the chat (e.g. a diagram edited by the user) is added to the instructions.

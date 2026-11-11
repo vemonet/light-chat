@@ -6,7 +6,7 @@ The agent only forwards, the chat decides what to render:
 - `proxied_response` answers the MCP requests of widgets (`forwardedProps.__proxiedMCPRequest`), e.g. reading their
   UI resource or calling a tool, sent to the agent endpoint
 
-Requires the `mcp-apps` extra: `pip install "light-chat[mcp-apps]"`
+Requires the `mcp-apps` extra: `pip install "light-chat-ui[mcp-apps]"`
 """
 
 from typing import Any, Self

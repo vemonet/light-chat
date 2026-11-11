@@ -8,5 +8,5 @@ __screenshots__
 __pycache__/
 .ruff_cache
 # JS build copied in the Python package by `vp run build:py`
-packages/python/src/light_chat/static/
+packages/python/src/light_chat_ui/static/
 npm-dist

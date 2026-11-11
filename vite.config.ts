@@ -62,9 +62,9 @@ export default defineConfig({
       "build:py": {
         dependsOn: ["@vemonet/light-chat#build"],
         command: [
-          "mkdir -p packages/python/src/light_chat/static",
-          "cp packages/js/dist/index.js packages/python/src/light_chat/static/light-chat.js",
-          "uv build --package light-chat --out-dir packages/python/dist",
+          "mkdir -p packages/python/src/light_chat_ui/static",
+          "cp packages/js/dist/index.js packages/python/src/light_chat_ui/static/light-chat.js",
+          "uv build --package light-chat-ui --out-dir packages/python/dist",
         ],
         cache: false,
       },

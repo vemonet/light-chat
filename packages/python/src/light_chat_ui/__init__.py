@@ -8,7 +8,7 @@ from typing import Any
 from fastapi import APIRouter
 from fastapi.responses import FileResponse, HTMLResponse
 
-from light_chat.log import setup_logging
+from light_chat_ui.log import setup_logging
 
 __all__ = ["chat_router", "setup_logging"]
 

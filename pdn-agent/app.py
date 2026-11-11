@@ -21,8 +21,8 @@ from ag_ui.core import (
 )
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
-from light_chat import chat_router, setup_logging
-from light_chat.mcp_apps import PROXIED_REQUEST, UIToolset, proxied_response, ui_meta
+from light_chat_ui import chat_router, setup_logging
+from light_chat_ui.mcp_apps import PROXIED_REQUEST, UIToolset, proxied_response, ui_meta
 from mcp.server.context import CallNext, HandlerResult, ServerRequestContext
 from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import BaseModel, BeforeValidator, Field, SecretStr

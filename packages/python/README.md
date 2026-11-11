@@ -1,14 +1,14 @@
-# light-chat
+# light-chat-ui
 
 Lightweight chat UI for [AG-UI](https://docs.ag-ui.com) agents, served from a FastAPI app. It bundles the [`@vemonet/light-chat`](../js/README.md) JS package, no frontend build needed.
 
 ```bash
-pip install light-chat
+pip install light-chat-ui
 ```
 
 ```python
 from fastapi import FastAPI
-from light_chat import chat_router
+from light_chat_ui import chat_router
 
 app = FastAPI()
 
@@ -34,15 +34,15 @@ The script is served next to the page: `/light-chat.js` for a page at `/`, `/ui/
 With a [Pydantic AI](https://ai.pydantic.dev) agent, the interactive UIs of MCP tools ([MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview) and [MCP-UI](https://mcpui.dev)) are shown in the chat. Install the `mcp-apps` extra:
 
 ```bash
-pip install "light-chat[mcp-apps]"
+pip install "light-chat-ui[mcp-apps]"
 ```
 
 Use a `UIToolset` for each MCP server with UIs, and answer the MCP requests of widgets in the AG-UI endpoint with `proxied_response`:
 
 ```python
 from fastapi import FastAPI, Request, Response
-from light_chat import chat_router
-from light_chat.mcp_apps import PROXIED_REQUEST, UIToolset, proxied_response
+from light_chat_ui import chat_router
+from light_chat_ui.mcp_apps import PROXIED_REQUEST, UIToolset, proxied_response
 from pydantic_ai import Agent
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 
@@ -76,14 +76,14 @@ Widgets can also add context for the model with `ui/update-model-context`, sent 
 `setup_logging` formats the logs of all libraries like uvicorn (`INFO:     message`), replacing handlers set by others, e.g. the MCP SDK. It hides the log line of each HTTP request, outgoing ones of `httpx` and the uvicorn access log, unless `request_logs=True`:
 
 ```python
-from light_chat import setup_logging
+from light_chat_ui import setup_logging
 
 setup_logging()  # or setup_logging("DEBUG", request_logs=True)
 ```
 
 ## Development
 
-From the repo root, build the JS package, copy it in `src/light_chat/static`, and build the wheel in `packages/python/dist`:
+From the repo root, build the JS package, copy it in `src/light_chat_ui/static`, and build the wheel in `packages/python/dist`:
 
 ```bash
 vp run build:py

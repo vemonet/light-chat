@@ -1,5 +1,5 @@
 [project]
-name = "light-chat"
+name = "light-chat-ui"
 version = "0.0.2"
 description = "Lightweight chat UI for AG-UI agents, served from a FastAPI app"
 readme = "README.md"
@@ -10,7 +10,7 @@ requires-python = ">=3.10"
 dependencies = ["fastapi>=0.115"]
 
 [project.optional-dependencies]
-# Tool UIs of MCP servers, with a Pydantic AI agent (`light_chat.mcp_apps`)
+# Tool UIs of MCP servers, with a Pydantic AI agent (`light_chat_ui.mcp_apps`)
 mcp-apps = ["pydantic-ai-slim[ag-ui,mcp]>=2.54.0", "typing-extensions>=4.12"]
 
 [build-system]

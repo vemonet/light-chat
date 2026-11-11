@@ -55,7 +55,7 @@
     "hooks": {
       "before:init": "vp check",
       "after:bump": [
-        "uv version --package light-chat ${version} --no-sync",
+        "uv version --package light-chat-ui ${version} --no-sync",
         "git-cliff --tag v${version} -o CHANGELOG.md",
         "git add CHANGELOG.md"
       ]

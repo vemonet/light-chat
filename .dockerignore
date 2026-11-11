@@ -6,4 +6,4 @@
 **/.env
 .git
 .vitest-attachments
-packages/python/src/light_chat/static
+packages/python/src/light_chat_ui/static

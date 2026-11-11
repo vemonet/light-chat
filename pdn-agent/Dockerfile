@@ -17,7 +17,7 @@ COPY packages/js packages/js
 COPY packages/solid packages/solid
 COPY pdn-agent/build-widgets.js pdn-agent/
 COPY pdn-agent/mcp_servers/widgets pdn-agent/mcp_servers/widgets
-RUN pnpm exec vp run --filter light-chat --filter pdn-agent build
+RUN pnpm exec vp run --filter @vemonet/light-chat --filter pdn-agent build
 
 # Python workspace, with the JS bundle in the light-chat package and the bundled widgets
 FROM ghcr.io/astral-sh/uv:0.11.21-python3.13-trixie-slim
@@ -26,7 +26,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 COPY packages/python packages/python
 COPY pdn-agent pdn-agent
-COPY --from=js /repo/packages/js/dist/index.js packages/python/src/light_chat/static/light-chat.js
+COPY --from=js /repo/packages/js/dist/index.js packages/python/src/light_chat_ui/static/light-chat.js
 COPY --from=js /repo/pdn-agent/mcp_servers/widgets/dist pdn-agent/mcp_servers/widgets/dist
 RUN uv sync --frozen --no-editable --package pdn-agent
 
