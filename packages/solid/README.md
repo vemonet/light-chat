@@ -1,19 +1,19 @@
-# light-chat-solid
+# @vemonet/light-chat-solid
 
 Lightweight chat UI as a SolidJS component, with streaming for AG-UI and OpenAI-compatible backends, tool calls, conversation history, attachments and settings. Framework agnostic version: [`light-chat`](../js/README.md).
 
 ## Install
 
 ```bash
-npm install light-chat-solid solid-js
+npm install @vemonet/light-chat-solid solid-js
 ```
 
 ## Usage
 
-The component fills its parent, give it a height. It takes the same options as `light-chat`, see its [documentation](../js/README.md#usage) for all of them (connectors, settings, history, theming).
+The component fills its parent, give it a height. It takes the same options as `@vemonet/light-chat`, see its [documentation](../js/README.md#usage) for all of them (connectors, settings, history, theming).
 
 ```tsx
-import { Chat, OpenAIConnector } from "light-chat-solid";
+import { Chat, OpenAIConnector } from "@vemonet/light-chat-solid";
 
 export function App() {
   return (
@@ -33,7 +33,7 @@ Options are read once when the component is mounted.
 To drive the chat from code, create a controller and pass it to the component:
 
 ```tsx
-import { Chat, createChat } from "light-chat-solid";
+import { Chat, createChat } from "@vemonet/light-chat-solid";
 
 const chat = createChat({ url: "/agent" });
 

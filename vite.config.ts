@@ -60,7 +60,7 @@ export default defineConfig({
     // cache: true,
     tasks: {
       "build:py": {
-        dependsOn: ["light-chat#build"],
+        dependsOn: ["@vemonet/light-chat#build"],
         command: [
           "mkdir -p packages/python/src/light_chat/static",
           "cp packages/js/dist/index.js packages/python/src/light_chat/static/light-chat.js",

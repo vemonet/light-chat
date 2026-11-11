@@ -7,9 +7,9 @@ const shared: PackUserConfig = {
   platform: "browser",
   minify: true,
   deps: {
-    onlyBundle: ["light-chat-solid", "solid-js", "marked", "dompurify", "highlight.js"],
-    // Inline the light-chat-solid types, it is not a dependency of the published package
-    dts: { alwaysBundle: ["light-chat-solid"] },
+    onlyBundle: ["@vemonet/light-chat-solid", "solid-js", "marked", "dompurify", "highlight.js"],
+    // Inline the @vemonet/light-chat-solid types, it is not a dependency of the published package
+    dts: { alwaysBundle: ["@vemonet/light-chat-solid"] },
   },
   // Typed with an older Rolldown than the one of vite-plus
   plugins: [solid() as TsdownPluginOption],

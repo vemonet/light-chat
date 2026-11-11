@@ -1,6 +1,6 @@
 # light-chat
 
-Lightweight chat UI for [AG-UI](https://docs.ag-ui.com) agents, served from a FastAPI app. It bundles the [`light-chat`](../js/README.md) JS package, no frontend build needed.
+Lightweight chat UI for [AG-UI](https://docs.ag-ui.com) agents, served from a FastAPI app. It bundles the [`@vemonet/light-chat`](../js/README.md) JS package, no frontend build needed.
 
 ```bash
 pip install light-chat

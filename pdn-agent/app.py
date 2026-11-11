@@ -316,8 +316,7 @@ async def log_run(events: AsyncIterator[BaseEvent], model: str, question: str | 
 
 @app.post("/chat")
 async def chat(request: Request) -> Response:
-    """AG-UI endpoint streaming the agent response, with the model and effort picked in `forwardedProps`.
-    The provenance written after the answer, and the graph of the tool calls, are sent as a sub-agent message"""
+    """AG-UI endpoint streaming the agent response, with the model and effort picked in `forwardedProps`."""
     body = await request.json()  # cached, the adapter reads the body again
     forwarded = body.get("forwardedProps") or {}
     # MCP request from a widget, e.g. reading its UI resource or calling a tool of its server

@@ -214,7 +214,7 @@ importers:
 
   packages/js:
     devDependencies:
-      light-chat-solid:
+      '@vemonet/light-chat-solid':
         specifier: workspace:*
         version: link:../solid
       solid-js:

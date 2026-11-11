@@ -18,23 +18,23 @@ new Chat("chat", { url: "/agent" });
 - Copy, date/time and optional thumbs up/down rating under each message
 - Light/dark theme through the standard CSS `color-scheme` and `light-dark()`
 - Works on desktop and mobile, zero runtime dependencies (Solid, marked, DOMPurify and highlight.js are bundled), ~79 kB gzipped
-- Also available as a SolidJS component: [`light-chat-solid`](../solid/README.md)
+- Also available as a SolidJS component: [`@vemonet/light-chat-solid`](../solid/README.md)
 
 ## Install
 
 ```bash
-npm install light-chat
+npm install @vemonet/light-chat
 ```
 
 ```js
-import { Chat } from "light-chat";
+import { Chat } from "@vemonet/light-chat";
 ```
 
 Or without a bundler:
 
 ```html
 <script type="module">
-  import { Chat } from "https://cdn.jsdelivr.net/npm/light-chat";
+  import { Chat } from "https://cdn.jsdelivr.net/npm/@vemonet/light-chat";
 
   new Chat("chat", { url: "/api/chat" });
 </script>
@@ -43,7 +43,7 @@ Or without a bundler:
 A classic script build is also provided, it exposes the `Chat` global, with the connectors attached to it (e.g. `Chat.OpenAIConnector`):
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/light-chat/dist/index.iife.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@vemonet/light-chat/dist/index.iife.js"></script>
 <script>
   new Chat("chat", { url: "/api/chat" });
 </script>
@@ -58,7 +58,7 @@ The chat fills its container, give it a height:
 ```
 
 ```js
-import { Chat, OpenAIConnector } from "light-chat";
+import { Chat, OpenAIConnector } from "@vemonet/light-chat";
 
 const chat = new Chat("chat", {
   // backend connector, default: AG-UI connector on `url`
@@ -137,7 +137,7 @@ Conversations are listed in a sidebar (closed on first visit unless `sidebarOpen
 To use your own API or database, pass an object implementing `HistoryStore`, or extend `IndexedDBHistory` to keep a local copy:
 
 ```ts
-import { Chat, IndexedDBHistory, type Conversation } from "light-chat";
+import { Chat, IndexedDBHistory, type Conversation } from "@vemonet/light-chat";
 
 class SyncedHistory extends IndexedDBHistory {
   async save(conversation: Conversation) {
@@ -192,7 +192,7 @@ HTML from tools runs in an opaque origin (`sandbox="allow-scripts allow-forms"`)
 For a backend that POSTs JSON and streams Server-Sent Events, extend `HttpConnector`: it handles the request, headers, API key, errors and SSE parsing, you define the `body()` and how to `parse()` the events. `toTurns()` flattens the conversation (text, files, tool calls and results) to map it to your format:
 
 ```ts
-import { Chat, HttpConnector, toTurns, type ChatEvent, type ConnectorContext } from "light-chat";
+import { Chat, HttpConnector, toTurns, type ChatEvent, type ConnectorContext } from "@vemonet/light-chat";
 
 class MyConnector extends HttpConnector {
   protected body(ctx: ConnectorContext) {

@@ -7,7 +7,7 @@ import {
   type ChatOptions,
   type FilePart,
   type Message,
-} from "light-chat-solid";
+} from "@vemonet/light-chat-solid";
 
 // Only the data types, the Solid component types would pull in all of Solid's JSX types
 export type {
@@ -43,7 +43,7 @@ export type {
   Timing,
   ToolPart,
   Turn,
-} from "light-chat-solid";
+} from "@vemonet/light-chat-solid";
 export {
   AgUiConnector,
   HttpConnector,
@@ -52,7 +52,7 @@ export {
   searchConversations,
   sse,
   toTurns,
-} from "light-chat-solid";
+} from "@vemonet/light-chat-solid";
 
 /** Framework agnostic chat UI, wraps the Solid component */
 export class Chat {

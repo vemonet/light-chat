@@ -1,5 +1,5 @@
 {
-  "name": "light-chat-solid",
+  "name": "@vemonet/light-chat-solid",
   "version": "0.0.1",
   "description": "Lightweight chat UI SolidJS component with streaming support for AG-UI and OpenAI-compatible backends",
   "keywords": [
@@ -12,8 +12,15 @@
     "streaming",
     "ui"
   ],
+  "homepage": "https://github.com/vemonet/light-chat#readme",
+  "bugs": "https://github.com/vemonet/light-chat/issues",
   "license": "MIT",
   "author": "Vincent Emonet <vincent.emonet@sib.swiss>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vemonet/light-chat.git",
+    "directory": "packages/solid"
+  },
   "files": [
     "dist"
   ],

@@ -5,7 +5,7 @@ A lightweight, framework-agnostic chat UI for LLM agents, with a modern look ins
 ```html
 <div id="chat" style="height: 100vh"></div>
 <script type="module">
-  import { Chat } from "https://cdn.jsdelivr.net/npm/light-chat";
+  import { Chat } from "https://cdn.jsdelivr.net/npm/@vemonet/light-chat";
 
   new Chat("chat", { url: "/agent" });
 </script>
@@ -20,12 +20,12 @@ A lightweight, framework-agnostic chat UI for LLM agents, with a modern look ins
 
 ## Packages
 
-|npm package| Description                                                                    |
-| ---------------------------------------------- | ------------------------------------------------------------------------------ |
-| [`light-chat`](packages/js/README.md)          | Framework agnostic: `new Chat("chat", { url })`, everything bundled            |
-| [`light-chat-solid`](packages/solid/README.md) | SolidJS component `<Chat url="..." />`, for Solid apps, `solid-js` as peer dep |
+| npm package                                             | Description                                                                    |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| [`@vemonet/light-chat`](packages/js/README.md)          | Framework agnostic: `new Chat("chat", { url })`, everything bundled            |
+| [`@vemonet/light-chat-solid`](packages/solid/README.md) | SolidJS component `<Chat url="..." />`, for Solid apps, `solid-js` as peer dep |
 
-The UI is written with [SolidJS](https://www.solidjs.com), which compiles to small and fast DOM code. `light-chat` bundles it, so you never deal with it unless you build a Solid app yourself. See the [`light-chat` documentation](packages/js/README.md) for all options: connectors, settings, history, attachments and theming.
+The UI is written with [SolidJS](https://www.solidjs.com), which compiles to small and fast DOM code. `@vemonet/light-chat` bundles it, so you never deal with it unless you build a Solid app yourself. See the [`light-chat` documentation](packages/js/README.md) for all options: connectors, settings, history, attachments and theming.
 
 There is also a `light-chat` pip package that enables to easily deploy the light-chat UI on a FastAPI endpoint with support for MCP Apps.
 
@@ -36,7 +36,7 @@ npm i --save light-chat
 ```
 
 ```js
-import { Chat, OpenAIConnector } from "light-chat";
+import { Chat, OpenAIConnector } from "@vemonet/light-chat";
 
 const chat = new Chat("chat", {
   connector: new OpenAIConnector({ url: "/v1/chat/completions" }),
@@ -126,4 +126,4 @@ vp run release
 
 The [CI workflow](.github/workflows/ci.yml) runs the checks, tests and builds on each push and pull request, and deploys the demo to GitHub Pages on pushes to `main`.
 
-In the workspace, `light-chat-solid` exports its sources, so nothing needs to be built for development. Its `publishConfig` points to `dist` when published. All the UI and logic live in `light-chat-solid`, `light-chat` is a thin class wrapping the component.
+In the workspace, `@vemonet/light-chat-solid` exports its sources, so nothing needs to be built for development. Its `publishConfig` points to `dist` when published. All the UI and logic live in `@vemonet/light-chat-solid`, `light-chat` is a thin class wrapping the component.
