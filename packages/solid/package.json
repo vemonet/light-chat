@@ -1,6 +1,6 @@
 {
   "name": "@vemonet/light-chat-solid",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Lightweight chat UI SolidJS component with streaming support for AG-UI and OpenAI-compatible backends",
   "keywords": [
     "ag-ui",

@@ -1,6 +1,6 @@
 [project]
 name = "light-chat-ui"
-version = "0.0.2"
+version = "0.0.3"
 description = "Lightweight chat UI for AG-UI agents, served from a FastAPI app"
 readme = "README.md"
 license = "MIT"

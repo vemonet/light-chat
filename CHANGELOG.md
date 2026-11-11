@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.3](https://github.com/vemonet/light-chat/releases/tag/v0.0.3) - 2026-11-11
+
+### Miscellaneous
+
+- Python package renamed `light-chat-ui`, imported as `light_chat_ui`, PyPI rejecting `light-chat` as too similar to the existing `lightchat`. The server and pdn-agent depend on and import it, the build task and release hook use `--package light-chat-ui`, and the Dockerfiles filter on `@vemonet/light-chat`, still on the old npm name since its rename ([32a97d9](https://github.com/vemonet/light-chat/commit/32a97d95f74a330e0b4349ef5ca88e2fd3e1d2c3))
+
 ## [0.0.2](https://github.com/vemonet/light-chat/releases/tag/v0.0.2) - 2026-11-11
 
 ### Features
